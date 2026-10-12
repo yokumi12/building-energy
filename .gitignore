@@ -9,3 +9,7 @@ node_modules/
 *.log
 data/raw/bdg2/*
 !data/raw/bdg2/README.md
+data/raw/cbecs/*
+!data/raw/cbecs/README.md
+data/raw/comstock/*
+!data/raw/comstock/README.md

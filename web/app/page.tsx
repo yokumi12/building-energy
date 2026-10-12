@@ -45,6 +45,30 @@ type MeterBuilding = {
   building_use: string;
 };
 type ApiState = "checking" | "ready" | "offline";
+type ComstockFeature = {
+  label: string;
+  unit: string;
+  kind: "number" | "category";
+  min?: number;
+  max?: number;
+  default: number | string;
+  options?: string[];
+};
+type ComstockMetadata = {
+  model_version: string;
+  dataset: string;
+  features: Record<string, ComstockFeature>;
+  test_metrics: Record<PredictionMode, { r2: number; mae_kwh: number; rmse_kwh: number }>;
+  disclaimer: string;
+};
+type ComstockPrediction = {
+  target: PredictionMode;
+  predicted_kwh: number;
+  test_r2: number;
+  test_mae_kwh: number;
+  test_rmse_kwh: number;
+  disclaimer: string;
+};
 
 const initialValues: BuildingValues = {
   relative_compactness: 0.98,
@@ -77,9 +101,68 @@ const featureConfig: {
 ];
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8001";
+const buildingUseLabels: Record<string, string> = {
+  Education: "교육시설",
+  "Food sales and service": "식음료 판매·서비스 시설",
+  Healthcare: "의료시설",
+  "Lodging/residential": "숙박·주거시설",
+  Office: "업무시설",
+  "Public services": "공공서비스 시설",
+};
+const comstockCategoryLabels: Record<string, string> = {
+  Warehouse: "창고",
+  SmallOffice: "소형 사무실",
+  MediumOffice: "중형 사무실",
+  LargeOffice: "대형 사무실",
+  RetailStripmall: "스트립몰 소매점",
+  RetailStandalone: "독립형 소매점",
+  FullServiceRestaurant: "일반 음식점",
+  QuickServiceRestaurant: "패스트푸드점",
+  PrimarySchool: "초등학교",
+  SecondarySchool: "중·고등학교",
+  Outpatient: "외래 진료시설",
+  Hospital: "병원",
+  SmallHotel: "소형 호텔",
+  LargeHotel: "대형 호텔",
+  NaturalGas: "천연가스",
+  Electricity: "전기",
+  NoHeating: "난방 없음",
+  FuelOil: "난방유",
+  Propane: "프로판",
+  DistrictHeating: "지역난방",
+  "__missing_or_unseen__": "기타·미분류",
+};
+const comstockFeatureGroups: { title: string; description: string; keys: string[] }[] = [
+  {
+    title: "건물·기후 조건",
+    description: "건물 유형과 위치에 따른 특성",
+    keys: ["in.building_type", "in.sqft", "in.number_of_stories", "in.aspect_ratio", "in.rotation", "in.climate_zone_ashrae_2004", "in.state_abbreviation"],
+  },
+  {
+    title: "냉난방 설비·기준",
+    description: "설치된 HVAC 시스템과 교체 당시 기준",
+    keys: ["in.hvac_system_type", "in.heating_fuel", "in.energy_code_followed_during_last_hvac_replacement", "in.energy_code_followed_during_last_roof_replacement", "in.energy_code_followed_during_last_walls_replacement", "in.energy_code_followed_during_last_windows_replacement"],
+  },
+  {
+    title: "설정 온도·운영시간",
+    description: "온도 설정과 평일·주말 운영 일정",
+    keys: ["in.tstat_clg_sp_f", "in.tstat_htg_sp_f", "in.weekday_operating_hours", "in.weekday_opening_time", "in.weekend_operating_hours", "in.weekend_opening_time"],
+  },
+];
 
 function formatValue(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function formatBuildingUse(buildingUse: string): string {
+  return buildingUseLabels[buildingUse] ?? buildingUse;
+}
+
+function formatComstockCategory(key: string, value: string): string {
+  if (comstockCategoryLabels[value]) return comstockCategoryLabels[value];
+  if (key === "in.climate_zone_ashrae_2004") return `${value} 기후대`;
+  if (key === "in.state_abbreviation") return `${value}주`;
+  return value;
 }
 
 function describeCode(key: FeatureKey, value: number): string {
@@ -96,6 +179,11 @@ export default function Home() {
   });
   const [predictions, setPredictions] = useState<Partial<Record<PredictionMode, Prediction>>>({});
   const [meterPredictions, setMeterPredictions] = useState<Partial<Record<PredictionMode, MeterPrediction>>>({});
+  const [comstockMetadata, setComstockMetadata] = useState<ComstockMetadata | null>(null);
+  const [comstockValues, setComstockValues] = useState<Record<string, number | string>>({});
+  const [comstockPredictions, setComstockPredictions] = useState<Partial<Record<PredictionMode, ComstockPrediction>>>({});
+  const [comstockLoading, setComstockLoading] = useState<PredictionMode | null>(null);
+  const [comstockError, setComstockError] = useState("");
   const [meterBuildings, setMeterBuildings] = useState<MeterBuilding[]>([]);
   const [meterBuildingCount, setMeterBuildingCount] = useState(0);
   const [selectedMeterBuilding, setSelectedMeterBuilding] = useState("");
@@ -145,6 +233,41 @@ export default function Home() {
       })
       .catch((requestError) => {
         if (active) setMeterError(requestError instanceof Error ? requestError.message : "실측 모델 정보를 불러오지 못했습니다.");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`${apiBase}/comstock/metadata`)
+      .then(async (response) => {
+        const body: unknown = await response.json();
+        if (!response.ok) {
+          const detail = (body as { detail?: unknown }).detail;
+          throw new Error(typeof detail === "string" ? detail : "ComStock 모델 정보를 불러오지 못했습니다.");
+        }
+        return body as ComstockMetadata;
+      })
+      .then((body) => {
+        if (active) {
+          setComstockMetadata(body);
+          setComstockValues(
+            Object.fromEntries(
+              Object.entries(body.features).map(([key, feature]) => [key, feature.default]),
+            ),
+          );
+        }
+      })
+      .catch((requestError) => {
+        if (active) {
+          setComstockError(
+            requestError instanceof Error
+              ? requestError.message
+              : "ComStock 모델 정보를 불러오지 못했습니다.",
+          );
+        }
       });
     return () => {
       active = false;
@@ -230,6 +353,40 @@ export default function Home() {
     } finally {
       setMeterLoading(null);
     }
+  }
+
+  async function predictComstock(target: PredictionMode) {
+    if (!comstockMetadata) {
+      setComstockError("ComStock 모델 정보를 불러오는 중입니다.");
+      return;
+    }
+    setComstockError("");
+    setComstockLoading(target);
+    try {
+      const response = await fetch(`${apiBase}/comstock/predict/${target}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ values: comstockValues }),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        const detail = (body as { detail?: unknown }).detail;
+        throw new Error(typeof detail === "string" ? detail : "ComStock 예측을 처리하지 못했습니다.");
+      }
+      setComstockPredictions((current) => ({ ...current, [target]: body as ComstockPrediction }));
+    } catch (requestError) {
+      setComstockError(
+        requestError instanceof Error ? requestError.message : "ComStock 예측 중 오류가 발생했습니다.",
+      );
+    } finally {
+      setComstockLoading(null);
+    }
+  }
+
+  function updateComstockValue(key: string, value: number | string) {
+    setComstockValues((current) => ({ ...current, [key]: value }));
+    setComstockPredictions({});
+    setComstockError("");
   }
 
   const predictedLoad = prediction
@@ -423,9 +580,105 @@ export default function Home() {
         </aside>
       </div>
 
+      <section className="page-width meter-demo comstock-model" aria-labelledby="comstock-title">
+        <div className="meter-demo-heading">
+          <p className="section-index">03 <span>ComStock 연간 에너지 예측</span></p>
+          <h2 id="comstock-title">건물 특성으로 연간 난방·냉방 에너지 예측</h2>
+          <p>
+            미국 ComStock 시뮬레이션 데이터로 학습한 별도 모델입니다.
+            {comstockMetadata ? ` 시험 R²: 난방 ${(comstockMetadata.test_metrics.heating.r2 * 100).toFixed(1)}%, 냉방 ${(comstockMetadata.test_metrics.cooling.r2 * 100).toFixed(1)}%.` : ""}
+          </p>
+        </div>
+        {comstockMetadata ? (
+          <>
+            <div className="comstock-feature-groups">
+              {comstockFeatureGroups.map((group) => (
+                <fieldset className="comstock-feature-group" key={group.title}>
+                  <legend>{group.title}</legend>
+                  <p>{group.description}</p>
+                  <div className="comstock-field-grid">
+                    {group.keys.map((key) => {
+                      const feature = comstockMetadata.features[key];
+                      if (!feature) return null;
+                      const value = comstockValues[key] ?? feature.default;
+                      return (
+                        <label className="comstock-field" key={key}>
+                          <span>{feature.label}{feature.unit ? ` (${feature.unit})` : ""}</span>
+                          {feature.kind === "category" ? (
+                            <select
+                              value={String(value)}
+                              onChange={(event) => updateComstockValue(key, event.target.value)}
+                            >
+                              {(feature.options ?? []).map((option) => (
+                                <option key={option} value={option}>
+                                  {formatComstockCategory(key, option)}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="number"
+                              min={feature.min}
+                              max={feature.max}
+                              step={key.includes("operating_hours") || key.includes("opening_time") ? 0.25 : "any"}
+                              value={Number(value)}
+                              onChange={(event) => updateComstockValue(key, Number(event.target.value))}
+                            />
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              ))}
+            </div>
+            <div className="comstock-results">
+              {(["heating", "cooling"] as const).map((target) => {
+                const result = comstockPredictions[target];
+                const targetLabel = target === "heating" ? "난방" : "냉방";
+                const metric = comstockMetadata.test_metrics[target];
+                return (
+                  <article className={`comstock-result ${target}`} key={target}>
+                    <div className="comstock-result-heading">
+                      <strong>{targetLabel} 에너지</strong>
+                      <span>시험 R² {(metric.r2 * 100).toFixed(1)}%</span>
+                    </div>
+                    {result ? (
+                      <>
+                        <p className="comstock-result-value">
+                          {result.predicted_kwh.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}
+                          <small> kWh/년</small>
+                        </p>
+                        <p className="comstock-result-error">
+                          시험 MAE {result.test_mae_kwh.toLocaleString("ko-KR", { maximumFractionDigits: 0 })} kWh
+                        </p>
+                      </>
+                    ) : (
+                      <p className="comstock-result-placeholder">입력한 조건의 연간 사용량을 예측합니다.</p>
+                    )}
+                    <button
+                      className="meter-demo-button"
+                      type="button"
+                      disabled={comstockLoading !== null || !comstockMetadata}
+                      onClick={() => predictComstock(target)}
+                    >
+                      {comstockLoading === target ? "계산 중..." : `${targetLabel} 연간 에너지 예측`}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+            {comstockError && <p className="inline-error" role="alert">{comstockError}</p>}
+            <p className="meter-demo-note">{comstockMetadata.disclaimer} R²는 정확도가 아니라 회귀 성능 지표입니다.</p>
+          </>
+        ) : (
+          <p className="inline-error" role="status">{comstockError || "ComStock 모델 정보를 불러오는 중입니다."}</p>
+        )}
+      </section>
+
       <section className="page-width meter-demo" aria-labelledby="meter-demo-title">
         <div className="meter-demo-heading">
-          <p className="section-index">03 <span>실측 자료 시연</span></p>
+          <p className="section-index">04 <span>실측 자료 시연</span></p>
           <h2 id="meter-demo-title">특성(Feature)으로 다음 시간 값 예측하기</h2>
           <p>정답(Target)은 다음 시간의 계량값입니다. 난방과 냉방을 각각 예측합니다.</p>
         </div>
@@ -439,9 +692,9 @@ export default function Home() {
             }}
             disabled={meterBuildings.length === 0}
           >
-            {meterBuildings.map((building) => (
+            {meterBuildings.map((building, index) => (
               <option key={building.building_id} value={building.building_id}>
-                {building.building_id} · {building.building_use} · {building.building_area_sqm.toLocaleString("ko-KR")}m²
+                건물 {index + 1} · {formatBuildingUse(building.building_use)} · {building.building_area_sqm.toLocaleString("ko-KR")}m²
               </option>
             ))}
           </select>
@@ -461,7 +714,7 @@ export default function Home() {
                   <>
                     <p className="meter-demo-value">{result.predicted_value.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}</p>
                     <p className="meter-demo-time">예측 시각: {result.forecast_timestamp.replace("T", " ")}</p>
-                    <p className="meter-demo-structure">{result.building_use} · {result.building_area_sqm.toLocaleString("ko-KR")}m²</p>
+                    <p className="meter-demo-structure">{formatBuildingUse(result.building_use)} · {result.building_area_sqm.toLocaleString("ko-KR")}m²</p>
                     <div className="meter-demo-metrics">
                       <span>새 건물 R² {(result.test_r2 * 100).toFixed(1)}%</span>
                       <span>직전값 기준 R² {(result.baseline_test_r2 * 100).toFixed(1)}%</span>

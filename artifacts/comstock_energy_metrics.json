@@ -1,0 +1,125 @@
+{
+  "model_version": "comstock-annual-end-use-hgb-v1",
+  "dataset": "NREL ComStock 2021 AMY 2018 baseline upgrade 00",
+  "target_definition": {
+    "heating": "Annual heating end-use energy consumption in kWh",
+    "cooling": "Annual cooling end-use energy consumption in kWh"
+  },
+  "algorithm": "HistGradientBoostingRegressor",
+  "feature_iterations": {
+    "iteration_1_structure": {
+      "numeric_features": [
+        "in.sqft",
+        "in.number_of_stories",
+        "in.aspect_ratio",
+        "in.rotation"
+      ],
+      "categorical_features": [
+        "in.building_type",
+        "in.climate_zone_ashrae_2004",
+        "in.state_abbreviation"
+      ]
+    },
+    "iteration_2_structure_systems_operations": {
+      "numeric_features": [
+        "in.sqft",
+        "in.number_of_stories",
+        "in.aspect_ratio",
+        "in.rotation",
+        "in.tstat_clg_sp_f",
+        "in.tstat_htg_sp_f",
+        "in.weekday_operating_hours",
+        "in.weekday_opening_time",
+        "in.weekend_operating_hours",
+        "in.weekend_opening_time"
+      ],
+      "categorical_features": [
+        "in.building_type",
+        "in.climate_zone_ashrae_2004",
+        "in.state_abbreviation",
+        "in.hvac_system_type",
+        "in.heating_fuel",
+        "in.energy_code_followed_during_last_hvac_replacement",
+        "in.energy_code_followed_during_last_roof_replacement",
+        "in.energy_code_followed_during_last_walls_replacement",
+        "in.energy_code_followed_during_last_windows_replacement"
+      ]
+    }
+  },
+  "split": {
+    "method": "GroupShuffleSplit by unique building ID",
+    "random_state": 42,
+    "validation_random_state": 43,
+    "train_rows": 242991,
+    "validation_rows": 52081,
+    "test_rows": 52072,
+    "test_usage": "Used once after validation-based feature selection."
+  },
+  "validation": {
+    "iteration_1_structure": {
+      "heating": {
+        "r2": 0.5000366388175985,
+        "mae_kwh": 78560.71570367186,
+        "rmse_kwh": 235105.24210514798
+      },
+      "cooling": {
+        "r2": 0.7931696561280219,
+        "mae_kwh": 29494.192508432647,
+        "rmse_kwh": 106719.58145116823
+      }
+    },
+    "iteration_2_structure_systems_operations": {
+      "heating": {
+        "r2": 0.8102403898015538,
+        "mae_kwh": 43538.78586105787,
+        "rmse_kwh": 144842.20006444558
+      },
+      "cooling": {
+        "r2": 0.8979178211702622,
+        "mae_kwh": 22357.72641745914,
+        "rmse_kwh": 74974.21923285154
+      }
+    }
+  },
+  "selected_iteration_by_target": {
+    "heating": "iteration_2_structure_systems_operations",
+    "cooling": "iteration_2_structure_systems_operations"
+  },
+  "test": {
+    "heating": {
+      "selected_iteration": "iteration_2_structure_systems_operations",
+      "validation_r2": 0.8102403898015538,
+      "model": {
+        "r2": 0.8498831017368843,
+        "mae_kwh": 41751.50192521148,
+        "rmse_kwh": 122054.09733747077
+      },
+      "mean_baseline": {
+        "r2": -1.4214639596721312e-05,
+        "mae_kwh": 148762.57068782547,
+        "rmse_kwh": 315021.8362470371
+      },
+      "test_zero_fraction": 0.1461245967122446
+    },
+    "cooling": {
+      "selected_iteration": "iteration_2_structure_systems_operations",
+      "validation_r2": 0.8979178211702622,
+      "model": {
+        "r2": 0.8915857425767388,
+        "mae_kwh": 22212.62684032096,
+        "rmse_kwh": 78539.9179234877
+      },
+      "mean_baseline": {
+        "r2": -1.0226483642128414e-06,
+        "mae_kwh": 96664.42230759005,
+        "rmse_kwh": 238532.44808264746
+      },
+      "test_zero_fraction": 0.06466047011829774
+    }
+  },
+  "limitations": [
+    "ComStock labels are simulated annual end-use energy, not direct metered operation or UCI design-load labels.",
+    "Results are from a US modeled building stock and should not be generalized to Korean buildings.",
+    "R2 is a regression metric, not classification accuracy."
+  ]
+}

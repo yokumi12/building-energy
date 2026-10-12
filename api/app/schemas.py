@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -37,4 +37,19 @@ class MeterPredictionResponse(BaseModel):
     baseline_test_r2: float
     baseline_test_mae: float
     unit_note: str
+    disclaimer: str
+
+
+class ComstockPredictionInput(BaseModel):
+    values: dict[str, Any]
+
+
+class ComstockPredictionResponse(BaseModel):
+    model_version: str
+    dataset: str
+    target: Literal["heating", "cooling"]
+    predicted_kwh: float
+    test_r2: float
+    test_mae_kwh: float
+    test_rmse_kwh: float
     disclaimer: str

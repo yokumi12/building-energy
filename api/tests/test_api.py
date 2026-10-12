@@ -80,3 +80,40 @@ def test_meter_model_rejects_unknown_target() -> None:
     with TestClient(app) as client:
         response = client.post("/meter-model/predict/electricity")
     assert response.status_code == 422
+
+
+def test_comstock_metadata_and_annual_energy_predictions() -> None:
+    with TestClient(app) as client:
+        metadata = client.get("/comstock/metadata")
+        assert metadata.status_code == 200
+        body = metadata.json()
+        values = {
+            name: feature["default"] for name, feature in body["features"].items()
+        }
+        heating = client.post("/comstock/predict/heating", json={"values": values})
+        cooling = client.post("/comstock/predict/cooling", json={"values": values})
+
+    assert len(body["features"]) == 19
+    assert body["dataset"].startswith("NREL ComStock")
+    for response, target in ((heating, "heating"), (cooling, "cooling")):
+        assert response.status_code == 200
+        prediction = response.json()
+        assert prediction["target"] == target
+        assert prediction["predicted_kwh"] >= 0
+        assert prediction["test_r2"] >= 0.84
+        assert prediction["test_mae_kwh"] > 0
+        assert "UCI" in prediction["disclaimer"]
+
+
+def test_comstock_rejects_out_of_range_and_unknown_target() -> None:
+    with TestClient(app) as client:
+        metadata = client.get("/comstock/metadata").json()
+        values = {
+            name: feature["default"] for name, feature in metadata["features"].items()
+        }
+        values["in.sqft"] = metadata["features"]["in.sqft"]["max"] + 1
+        invalid = client.post("/comstock/predict/heating", json={"values": values})
+        unknown_target = client.post("/comstock/predict/electricity", json={"values": values})
+
+    assert invalid.status_code == 422
+    assert unknown_target.status_code == 422

@@ -88,6 +88,27 @@ Feature/model selection uses a separate set of validation buildings and dates. F
 
 The API exposes `GET /meter-model/metadata` and `POST /meter-model/predict/heating` or `/meter-model/predict/cooling`. A `building_id` query parameter selects one building from the available list. These endpoints forecast the next available hour for that building; the history ends in 2017. This is a reproducible offline demonstration, not a live or Korean-building forecast. BDG2 and UCI targets are not merged.
 
+## Train separate ComStock annual energy models
+
+ComStock is a third, separate target definition: annual simulated heating and cooling end-use energy consumption in kWh. It is not UCI's design heating/cooling load and is not directly metered energy. The feature-iteration experiment uses the baseline (`upgrade == 00`) building rows only, with a group split by unique building ID. Structure-only features are compared on validation data with structure, HVAC/fuel, energy-code, thermostat, and operating-hour features. The selected models are then fit on train plus validation and evaluated once on held-out test buildings.
+
+After downloading the files listed in `data/raw/comstock/README.md`, run:
+
+```powershell
+python scripts\train_comstock_models.py
+```
+
+The script writes `artifacts/comstock_energy_metrics.json` and `artifacts/comstock_energy_models.joblib`. On the current split, the expanded feature iteration improves validation R² from 0.5000 to 0.8102 for heating and from 0.7932 to 0.8979 for cooling. Held-out test results are:
+
+| Annual target | Test R² | MAE (kWh) | RMSE (kWh) |
+|---|---:|---:|---:|
+| Heating | 0.8499 | 41,751.50 | 122,054.10 |
+| Cooling | 0.8916 | 22,212.63 | 78,539.92 |
+
+R² is not accuracy. Heating is just below the 0.85 goal; cooling exceeds it. These results describe US modeled-stock annual energy consumption only and do not establish performance for Korean buildings. The existing UCI load API remains a distinct service; do not interpret its predictions as annual kWh.
+
+The API exposes `GET /comstock/metadata` for supported feature names, ranges, categories, defaults, and held-out metrics. Submit all feature values in a `values` object to `POST /comstock/predict/heating` or `POST /comstock/predict/cooling`; each response returns predicted annual kWh and the corresponding test metrics. The web page has a separate ComStock section with Korean-labeled inputs and separate heating/cooling prediction buttons. This API requires the generated ComStock model bundle; if it is absent, the endpoint returns HTTP 503 rather than substituting another dataset's model.
+
 ## Limitations
 
 - The model is trained on simulated design cases. It does not predict measured utility bills or guarantee real-world performance.
