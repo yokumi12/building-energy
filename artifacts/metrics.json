@@ -1,0 +1,52 @@
+{
+  "model_version": "energy-efficiency-rf-v1",
+  "algorithm": "RandomForestRegressor",
+  "split": {
+    "method": "GroupShuffleSplit",
+    "group_columns": [
+      "relative_compactness",
+      "surface_area",
+      "wall_area",
+      "roof_area",
+      "overall_height"
+    ],
+    "test_size": 0.25,
+    "random_state": 42,
+    "train_rows": 576,
+    "test_rows": 192,
+    "unique_geometry_groups": 12
+  },
+  "targets": {
+    "heating_load": {
+      "baseline_mean": {
+        "mae": 7.042940104166667,
+        "rmse": 7.559806993399517,
+        "r2": -0.04582685944562148
+      },
+      "random_forest": {
+        "mae": 2.650008680555542,
+        "rmse": 2.9051620235801385,
+        "r2": 0.8455531366923126
+      },
+      "test_rows": 192
+    },
+    "cooling_load": {
+      "baseline_mean": {
+        "mae": 6.98863425925926,
+        "rmse": 7.6576463818570195,
+        "r2": -0.008806834119090778
+      },
+      "random_forest": {
+        "mae": 3.669627430555554,
+        "rmse": 4.162479377455592,
+        "r2": 0.701927719346839
+      },
+      "test_rows": 192
+    }
+  },
+  "limitations": [
+    "Evaluation holds out building geometry groups to reduce leakage between repeated design variants.",
+    "The dataset contains simulated design cases, not measurements from operating buildings.",
+    "Metric units follow the source target values; the workbook does not state a physical unit."
+  ]
+}
