@@ -1,3 +1,5 @@
+import json
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -20,6 +22,7 @@ def test_predicts_heating_and_cooling_loads() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["model_version"] == "energy-efficiency-rf-v1"
+    assert body["prediction_id"]
     assert body["heating_load"] > 0
     assert body["cooling_load"] > 0
     assert "시뮬레이션" in body["disclaimer"]
@@ -62,6 +65,7 @@ def test_meter_model_metadata_and_separate_forecasts() -> None:
         assert body["baseline_test_r2"] > 0
         assert body["baseline_test_mae"] > 0
         assert body["predicted_value"] >= 0
+        assert body["prediction_id"]
         assert "unit" in body["unit_note"]
 
 
@@ -98,6 +102,7 @@ def test_comstock_metadata_and_annual_energy_predictions() -> None:
     for response, target in ((heating, "heating"), (cooling, "cooling")):
         assert response.status_code == 200
         prediction = response.json()
+        assert prediction["prediction_id"]
         assert prediction["target"] == target
         assert prediction["predicted_kwh"] >= 0
         assert prediction["test_r2"] >= 0.84
@@ -117,3 +122,63 @@ def test_comstock_rejects_out_of_range_and_unknown_target() -> None:
 
     assert invalid.status_code == 422
     assert unknown_target.status_code == 422
+
+
+def test_prediction_and_actual_value_are_written_as_structured_logs(caplog) -> None:
+    caplog.set_level("INFO", logger="uvicorn.error")
+    with TestClient(app) as client:
+        prediction = client.post("/predict?target=heating", json=VALID_BUILDING)
+        body = prediction.json()
+        feedback = client.post(
+            "/feedback",
+            json={
+                "prediction_id": body["prediction_id"],
+                "model": "uci_design_load",
+                "target": "heating",
+                "predicted_value": body["heating_load"],
+                "actual_value": 12.5,
+            },
+        )
+
+    assert prediction.status_code == 200
+    assert feedback.status_code == 200
+    events = [
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if record.getMessage().startswith("{")
+    ]
+    prediction_event = next(event for event in events if event.get("event_type") == "prediction")
+    feedback_event = next(event for event in events if event.get("event_type") == "actual_value")
+    assert prediction_event["prediction_id"] == body["prediction_id"]
+    assert prediction_event["model"] == "uci_design_load"
+    assert prediction_event["target"] == "heating"
+    assert prediction_event["input"] == VALID_BUILDING
+    assert feedback_event["prediction_id"] == body["prediction_id"]
+    assert feedback_event["actual_value"] == 12.5
+
+
+def test_feedback_rejects_negative_or_invalid_actual_values() -> None:
+    with TestClient(app) as client:
+        negative = client.post(
+            "/feedback",
+            json={
+                "prediction_id": "00000000-0000-0000-0000-000000000001",
+                "model": "uci_design_load",
+                "target": "heating",
+                "predicted_value": 2.0,
+                "actual_value": -1,
+            },
+        )
+        non_finite = client.post(
+            "/feedback",
+            json={
+                "prediction_id": "00000000-0000-0000-0000-000000000001",
+                "model": "uci_design_load",
+                "target": "heating",
+                "predicted_value": 2.0,
+                "actual_value": "not-a-number",
+            },
+        )
+
+    assert negative.status_code == 422
+    assert non_finite.status_code == 422

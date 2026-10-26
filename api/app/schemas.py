@@ -1,4 +1,5 @@
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -15,6 +16,7 @@ class BuildingInput(BaseModel):
 
 
 class PredictionResponse(BaseModel):
+    prediction_id: str
     model_version: str
     heating_load: float
     cooling_load: float
@@ -22,6 +24,7 @@ class PredictionResponse(BaseModel):
 
 
 class MeterPredictionResponse(BaseModel):
+    prediction_id: str
     dataset: str
     building_id: str
     target: Literal["heating", "cooling"]
@@ -45,6 +48,7 @@ class ComstockPredictionInput(BaseModel):
 
 
 class ComstockPredictionResponse(BaseModel):
+    prediction_id: str
     model_version: str
     dataset: str
     target: Literal["heating", "cooling"]
@@ -53,3 +57,16 @@ class ComstockPredictionResponse(BaseModel):
     test_mae_kwh: float
     test_rmse_kwh: float
     disclaimer: str
+
+
+class PredictionFeedbackInput(BaseModel):
+    prediction_id: UUID
+    model: Literal["uci_design_load", "comstock_annual_energy", "bdg2_next_hour"]
+    target: Literal["heating", "cooling"]
+    predicted_value: float = Field(ge=0, allow_inf_nan=False)
+    actual_value: float = Field(ge=0, allow_inf_nan=False)
+
+
+class PredictionFeedbackResponse(BaseModel):
+    status: Literal["recorded"]
+    prediction_id: str

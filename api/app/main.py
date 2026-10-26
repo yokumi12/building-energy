@@ -1,7 +1,12 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+import json
+import logging
 import math
 from numbers import Real
 from pathlib import Path
+from typing import Literal
+from uuid import uuid4
 
 import joblib
 import pandas as pd
@@ -13,6 +18,8 @@ from .schemas import (
     ComstockPredictionInput,
     ComstockPredictionResponse,
     MeterPredictionResponse,
+    PredictionFeedbackInput,
+    PredictionFeedbackResponse,
     PredictionResponse,
 )
 
@@ -24,6 +31,20 @@ DISCLAIMER = (
     "예측값은 UCI Energy Efficiency의 시뮬레이션 설계 데이터로 학습한 교육용 모델 결과입니다. "
     "실제 건물의 에너지 사용량이나 설계 적합성을 보장하지 않습니다."
 )
+prediction_logger = logging.getLogger("uvicorn.error")
+
+
+def log_prediction_event(event: dict[str, object]) -> None:
+    prediction_logger.info(
+        json.dumps(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                **event,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
 
 
 @asynccontextmanager
@@ -76,7 +97,10 @@ def metadata() -> dict[str, object]:
 
 
 @app.post("/predict", response_model=PredictionResponse)
-def predict(building: BuildingInput) -> PredictionResponse:
+def predict(
+    building: BuildingInput,
+    target: Literal["both", "heating", "cooling"] = "both",
+) -> PredictionResponse:
     bundle = getattr(app.state, "model_bundle", None)
     if bundle is None:
         raise HTTPException(status_code=503, detail="Model is not loaded.")
@@ -86,7 +110,23 @@ def predict(building: BuildingInput) -> PredictionResponse:
     )
     heating = float(bundle["models"]["heating_load"].predict(row)[0])
     cooling = float(bundle["models"]["cooling_load"].predict(row)[0])
+    prediction_id = str(uuid4())
+    log_prediction_event(
+        {
+            "event_type": "prediction",
+            "prediction_id": prediction_id,
+            "model": "uci_design_load",
+            "target": target,
+            "input": building.model_dump(),
+            "predicted_values": {
+                "heating": round(heating, 3),
+                "cooling": round(cooling, 3),
+            },
+            "model_version": bundle["model_version"],
+        }
+    )
     return PredictionResponse(
+        prediction_id=prediction_id,
         model_version=bundle["model_version"],
         heating_load=round(heating, 3),
         cooling_load=round(cooling, 3),
@@ -163,7 +203,21 @@ def predict_comstock(
         )
     prediction = max(0.0, float(bundle["models"][target].predict(features)[0]))
     metrics = bundle["test_metrics"][target]["model"]
+    prediction_id = str(uuid4())
+    log_prediction_event(
+        {
+            "event_type": "prediction",
+            "prediction_id": prediction_id,
+            "model": "comstock_annual_energy",
+            "target": target,
+            "input": request.values,
+            "predicted_value": round(prediction, 2),
+            "unit": "kWh/year",
+            "model_version": bundle["model_version"],
+        }
+    )
     return ComstockPredictionResponse(
+        prediction_id=prediction_id,
         model_version=bundle["model_version"],
         dataset=bundle["dataset"],
         target=target,
@@ -175,6 +229,26 @@ def predict_comstock(
             "ComStock 기반 미국 건물 시뮬레이션 결과입니다. 실측값이나 한국 건물의 "
             "예측을 보장하지 않으며, 연간 에너지(kWh) 예측은 UCI 설계 부하와 다릅니다."
         ),
+    )
+
+
+@app.post("/feedback", response_model=PredictionFeedbackResponse)
+def record_prediction_feedback(
+    feedback: PredictionFeedbackInput,
+) -> PredictionFeedbackResponse:
+    log_prediction_event(
+        {
+            "event_type": "actual_value",
+            "prediction_id": str(feedback.prediction_id),
+            "model": feedback.model,
+            "target": feedback.target,
+            "predicted_value": feedback.predicted_value,
+            "actual_value": feedback.actual_value,
+        }
+    )
+    return PredictionFeedbackResponse(
+        status="recorded",
+        prediction_id=str(feedback.prediction_id),
     )
 
 
@@ -250,7 +324,25 @@ def predict_meter(target: str, building_id: str | None = None) -> MeterPredictio
     )
     prediction = max(0.0, float(model_info["estimator"].predict(features)[0]))
 
+    prediction_id = str(uuid4())
+    log_prediction_event(
+        {
+            "event_type": "prediction",
+            "prediction_id": prediction_id,
+            "model": "bdg2_next_hour",
+            "target": target,
+            "input": {
+                "building_id": selected_building,
+                "forecast_timestamp": forecast_time.isoformat(),
+                "features": feature_values,
+            },
+            "predicted_value": round(prediction, 4),
+            "model_version": model_info["selected_iteration"],
+            "unit_note": "Source meter unit is not established.",
+        }
+    )
     return MeterPredictionResponse(
+        prediction_id=prediction_id,
         dataset=bundle["dataset"],
         building_id=selected_building,
         target=target,

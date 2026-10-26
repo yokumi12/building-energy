@@ -16,12 +16,14 @@ type BuildingValues = {
 type FeatureKey = keyof BuildingValues;
 type PredictionMode = "heating" | "cooling";
 type Prediction = {
+  prediction_id: string;
   model_version: string;
   heating_load: number;
   cooling_load: number;
   disclaimer: string;
 };
 type MeterPrediction = {
+  prediction_id: string;
   dataset: string;
   building_id: string;
   target: PredictionMode;
@@ -62,6 +64,7 @@ type ComstockMetadata = {
   disclaimer: string;
 };
 type ComstockPrediction = {
+  prediction_id: string;
   target: PredictionMode;
   predicted_kwh: number;
   test_r2: number;
@@ -115,7 +118,7 @@ const comstockCategoryLabels: Record<string, string> = {
   MediumOffice: "중형 사무실",
   LargeOffice: "대형 사무실",
   RetailStripmall: "스트립몰 소매점",
-  RetailStandalone: "독립형 소매점",
+  RetailStandalone: "독립형 단독 소매점",
   FullServiceRestaurant: "일반 음식점",
   QuickServiceRestaurant: "패스트푸드점",
   PrimarySchool: "초등학교",
@@ -127,10 +130,106 @@ const comstockCategoryLabels: Record<string, string> = {
   NaturalGas: "천연가스",
   Electricity: "전기",
   NoHeating: "난방 없음",
-  FuelOil: "난방유",
+  FuelOil: "연료유",
   Propane: "프로판",
   DistrictHeating: "지역난방",
+  "Baseboard district hot water": "온수식 베이스보드 난방",
+  "Baseboard electric": "전기 베이스보드 난방",
+  "Baseboard gas boiler": "가스 보일러 온수식 베이스보드 난방",
+  "DOAS with VRF": "외기전담시스템(DOAS) + 가변 냉매 유량 시스템(VRF)",
+  "DOAS with fan coil air-cooled chiller with boiler": "외기전담시스템 + 팬코일 + 공랭식 냉동기 + 보일러",
+  "DOAS with fan coil chiller with boiler": "외기전담시스템 + 팬코일 + 수냉식 냉동기 + 보일러",
+  "DOAS with fan coil chiller with district hot water": "외기전담시스템 + 팬코일 + 수냉식 냉동기 + 지역난방 온수",
+  "DOAS with fan coil district chilled water with district hot water": "외기전담시스템 + 팬코일 + 지역 냉수·온수",
+  "DOAS with water source heat pumps cooling tower with boiler": "외기전담시스템 + 수열원 히트펌프 + 냉각탑 + 보일러",
+  "DOAS with water source heat pumps district chilled water with district hot water": "외기전담시스템 + 수열원 히트펌프 + 지역 냉수·온수",
+  "DOAS with water source heat pumps with ground source heat pump": "외기전담시스템 + 수열원·지열원 히트펌프",
+  "Direct evap coolers with baseboard electric": "직접 증발식 냉각기 + 전기 베이스보드 난방",
+  "Direct evap coolers with forced air furnace": "직접 증발식 냉각기 + 강제 송풍식 난방로",
+  "Direct evap coolers with gas unit heaters": "직접 증발식 냉각기 + 가스 유닛 히터",
+  "Direct evap coolers with no heat": "직접 증발식 냉각기 + 난방 없음",
+  "Fan coil air-cooled chiller with baseboard electric": "팬코일 + 공랭식 냉동기 + 전기 베이스보드 난방",
+  "Fan coil air-cooled chiller with boiler": "팬코일 + 공랭식 냉동기 + 보일러",
+  "Fan coil air-cooled chiller with no heat": "팬코일 + 공랭식 냉동기 + 난방 없음",
+  "Fan coil chiller with baseboard electric": "팬코일 + 수냉식 냉동기 + 전기 베이스보드 난방",
+  "Fan coil chiller with boiler": "팬코일 + 수냉식 냉동기 + 보일러",
+  "Fan coil chiller with district hot water": "팬코일 + 수냉식 냉동기 + 지역난방 온수",
+  "Fan coil chiller with no heat": "팬코일 + 수냉식 냉동기 + 난방 없음",
+  "Fan coil district chilled water with boiler": "팬코일 + 지역 냉수 + 보일러",
+  "Fan coil district chilled water with district hot water": "팬코일 + 지역 냉수·온수",
+  "Forced air furnace": "강제 송풍식 난방로",
+  "Gas unit heaters": "가스 유닛 히터",
+  "PSZ-AC district chilled water with district hot water": "단일구역 정풍량 냉난방기(PSZ-AC) + 지역 냉수·온수",
+  "PSZ-AC district chilled water with electric coil": "단일구역 정풍량 냉방기(PSZ-AC) + 지역 냉수 + 전기 코일 난방",
+  "PSZ-AC with baseboard district hot water": "단일구역 정풍량 냉방기(PSZ-AC) + 지역난방 온수 베이스보드",
+  "PSZ-AC with baseboard electric": "단일구역 정풍량 냉방기(PSZ-AC) + 전기 베이스보드 난방",
+  "PSZ-AC with baseboard gas boiler": "단일구역 정풍량 냉방기(PSZ-AC) + 가스 보일러 베이스보드 난방",
+  "PSZ-AC with district hot water": "단일구역 정풍량 냉방기(PSZ-AC) + 지역난방 온수",
+  "PSZ-AC with electric coil": "단일구역 정풍량 냉방기(PSZ-AC) + 전기 코일 난방",
+  "PSZ-AC with gas boiler": "단일구역 정풍량 냉방기(PSZ-AC) + 가스 보일러",
+  "PSZ-AC with gas coil": "단일구역 정풍량 냉방기(PSZ-AC) + 가스 코일 난방",
+  "PSZ-AC with gas unit heaters": "단일구역 정풍량 냉방기(PSZ-AC) + 가스 유닛 히터",
+  "PSZ-AC with no heat": "단일구역 정풍량 냉방기(PSZ-AC) + 난방 없음",
+  "PSZ-HP": "단일구역 정풍량 공기열원 히트펌프(PSZ-HP)",
+  "PTAC with baseboard district hot water": "패키지형 터미널 에어컨(PTAC) + 지역난방 온수 베이스보드",
+  "PTAC with baseboard electric": "패키지형 터미널 에어컨(PTAC) + 전기 베이스보드 난방",
+  "PTAC with baseboard gas boiler": "패키지형 터미널 에어컨(PTAC) + 가스 보일러 베이스보드 난방",
+  "PTAC with electric coil": "패키지형 터미널 에어컨(PTAC) + 전기 코일 난방",
+  "PTAC with gas boiler": "패키지형 터미널 에어컨(PTAC) + 가스 보일러",
+  "PTAC with gas coil": "패키지형 터미널 에어컨(PTAC) + 가스 코일 난방",
+  "PTAC with gas unit heaters": "패키지형 터미널 에어컨(PTAC) + 가스 유닛 히터",
+  "PTAC with no heat": "패키지형 터미널 에어컨(PTAC) + 난방 없음",
+  PTHP: "패키지형 터미널 히트펌프(PTHP)",
+  "PVAV with PFP boxes": "팬 동력 박스가 있는 변풍량 시스템(PVAV)",
+  "PVAV with district hot water reheat": "변풍량 시스템(PVAV) + 지역난방 온수 재열",
+  "PVAV with gas boiler reheat": "변풍량 시스템(PVAV) + 가스 보일러 재열",
+  "PVAV with gas heat with electric reheat": "변풍량 시스템(PVAV) + 가스 난방·전기 재열",
+  "Residential AC with baseboard electric": "주거용 에어컨 + 전기 베이스보드 난방",
+  "Residential AC with no heat": "주거용 에어컨 + 난방 없음",
+  "Residential AC with residential forced air furnace": "주거용 에어컨 + 주거용 강제 송풍식 난방로",
+  "Residential forced air furnace": "주거용 강제 송풍식 난방로",
+  "VAV air-cooled chiller with gas boiler reheat": "공랭식 냉동기 변풍량 시스템(VAV) + 가스 보일러 재열",
+  "VAV chiller with PFP boxes": "팬 동력 박스가 있는 냉동기 변풍량 시스템(VAV)",
+  "VAV chiller with district hot water reheat": "냉동기 변풍량 시스템(VAV) + 지역난방 온수 재열",
+  "VAV chiller with gas boiler reheat": "냉동기 변풍량 시스템(VAV) + 가스 보일러 재열",
+  "VAV chiller with gas coil reheat": "냉동기 변풍량 시스템(VAV) + 가스 코일 재열",
+  "VAV district chilled water with district hot water reheat": "지역 냉수 변풍량 시스템(VAV) + 지역난방 온수 재열",
+  "Water source heat pumps cooling tower with boiler": "수열원 히트펌프 + 냉각탑 + 보일러",
+  "Water source heat pumps fluid cooler with boiler": "수열원 히트펌프 + 유체 냉각기 + 보일러",
+  "Water source heat pumps with ground source heat pump": "수열원 히트펌프 + 지열원 히트펌프",
   "__missing_or_unseen__": "기타·미분류",
+};
+const stateLabels: Record<string, string> = {
+  AK: "알래스카", AL: "앨라배마", AR: "아칸소", AZ: "애리조나",
+  CA: "캘리포니아", CO: "콜로라도", CT: "코네티컷", DC: "워싱턴 D.C.",
+  DE: "델라웨어", FL: "플로리다", GA: "조지아", HI: "하와이",
+  IA: "아이오와", ID: "아이다호", IL: "일리노이", IN: "인디애나",
+  KS: "캔자스", KY: "켄터키", LA: "루이지애나", MA: "매사추세츠",
+  MD: "메릴랜드", ME: "메인", MI: "미시간", MN: "미네소타",
+  MO: "미주리", MS: "미시시피", MT: "몬태나", NC: "노스캐롤라이나",
+  ND: "노스다코타", NE: "네브래스카", NH: "뉴햄프셔", NJ: "뉴저지",
+  NM: "뉴멕시코", NV: "네바다", NY: "뉴욕", OH: "오하이오",
+  OK: "오클라호마", OR: "오리건", PA: "펜실베이니아", RI: "로드아일랜드",
+  SC: "사우스캐롤라이나", SD: "사우스다코타", TN: "테네시", TX: "텍사스",
+  UT: "유타", VA: "버지니아", VT: "버몬트", WA: "워싱턴주",
+  WI: "위스콘신", WV: "웨스트버지니아", WY: "와이오밍",
+};
+const energyCodeLabels: Record<string, string> = {
+  "ComStock DOE Ref Pre-1980": "DOE 기준 모델 · 1980년 이전",
+  "ComStock DOE Ref 1980-2004": "DOE 기준 모델 · 1980–2004년",
+  "ComStock DEER Pre-1975": "캘리포니아 DEER 기준 · 1975년 이전",
+  "ComStock DEER 1985": "캘리포니아 DEER 기준 · 1985년",
+  "ComStock DEER 1996": "캘리포니아 DEER 기준 · 1996년",
+  "ComStock DEER 2003": "캘리포니아 DEER 기준 · 2003년",
+  "ComStock DEER 2007": "캘리포니아 DEER 기준 · 2007년",
+  "ComStock DEER 2011": "캘리포니아 DEER 기준 · 2011년",
+  "ComStock DEER 2014": "캘리포니아 DEER 기준 · 2014년",
+  "ComStock DEER 2015": "캘리포니아 DEER 기준 · 2015년",
+  "ComStock DEER 2017": "캘리포니아 DEER 기준 · 2017년",
+  "ComStock 90.1-2004": "ASHRAE 90.1 에너지 기준 · 2004년판",
+  "ComStock 90.1-2007": "ASHRAE 90.1 에너지 기준 · 2007년판",
+  "ComStock 90.1-2010": "ASHRAE 90.1 에너지 기준 · 2010년판",
+  "ComStock 90.1-2013": "ASHRAE 90.1 에너지 기준 · 2013년판",
 };
 const comstockFeatureGroups: { title: string; description: string; keys: string[] }[] = [
   {
@@ -159,9 +258,12 @@ function formatBuildingUse(buildingUse: string): string {
 }
 
 function formatComstockCategory(key: string, value: string): string {
+  if (key.startsWith("in.energy_code_followed_")) {
+    return energyCodeLabels[value] ?? value;
+  }
   if (comstockCategoryLabels[value]) return comstockCategoryLabels[value];
   if (key === "in.climate_zone_ashrae_2004") return `${value} 기후대`;
-  if (key === "in.state_abbreviation") return `${value}주`;
+  if (key === "in.state_abbreviation") return `${stateLabels[value] ?? value} (${value})`;
   return value;
 }
 
@@ -169,6 +271,77 @@ function describeCode(key: FeatureKey, value: number): string {
   if (key === "orientation") return `방향 범주 ${value}`;
   if (key === "glazing_area_distribution") return value === 0 ? "창 없음" : `분포 범주 ${value}`;
   return "";
+}
+
+type FeedbackModel = "uci_design_load" | "comstock_annual_energy" | "bdg2_next_hour";
+
+function ActualValueForm({
+  predictionId,
+  model,
+  target,
+  predictedValue,
+  unit,
+}: {
+  predictionId: string;
+  model: FeedbackModel;
+  target: PredictionMode;
+  predictedValue: number;
+  unit: string;
+}) {
+  const [actualValue, setActualValue] = useState("");
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submitFeedback(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    setSubmitting(true);
+    try {
+      const response = await fetch(`${apiBase}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prediction_id: predictionId,
+          model,
+          target,
+          predicted_value: predictedValue,
+          actual_value: Number(actualValue),
+        }),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        const detail = (body as { detail?: unknown }).detail;
+        throw new Error(typeof detail === "string" ? detail : "확인된 값을 기록하지 못했습니다.");
+      }
+      setMessage("확인된 값을 기록했습니다.");
+      setActualValue("");
+    } catch (requestError) {
+      setMessage(requestError instanceof Error ? requestError.message : "값 기록 중 오류가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form className="feedback-form" onSubmit={submitFeedback}>
+      <label>
+        <span>나중에 확인된 값{unit ? ` (${unit})` : ""}</span>
+        <input
+          type="number"
+          min="0"
+          step="any"
+          required
+          value={actualValue}
+          onChange={(event) => setActualValue(event.target.value)}
+        />
+      </label>
+      <button className="meter-demo-button" type="submit" disabled={submitting}>
+        {submitting ? "기록 중..." : "확인값 기록"}
+      </button>
+      <p>실제 측정값이나 정답을 확보한 경우에만 입력하세요.</p>
+      {message && <p role="status">{message}</p>}
+    </form>
+  );
 }
 
 export default function Home() {
@@ -309,7 +482,7 @@ export default function Home() {
     setError("");
     setLoading(true);
     try {
-      const response = await fetch(`${apiBase}/predict`, {
+      const response = await fetch(`${apiBase}/predict?target=${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
@@ -558,6 +731,13 @@ export default function Home() {
                 </div>
                 <div className="model-caption"><span className="model-caption-dot" /><span>사용 모델</span><strong>{prediction.model_version}</strong></div>
                 <p className="result-disclaimer">{prediction.disclaimer}</p>
+                <ActualValueForm
+                  predictionId={prediction.prediction_id}
+                  model="uci_design_load"
+                  target={mode}
+                  predictedValue={predictedLoad ?? 0}
+                  unit=""
+                />
               </>
             ) : (
               <div className="empty-result">
@@ -652,6 +832,13 @@ export default function Home() {
                         <p className="comstock-result-error">
                           시험 MAE {result.test_mae_kwh.toLocaleString("ko-KR", { maximumFractionDigits: 0 })} kWh
                         </p>
+                        <ActualValueForm
+                          predictionId={result.prediction_id}
+                          model="comstock_annual_energy"
+                          target={target}
+                          predictedValue={result.predicted_kwh}
+                          unit="kWh/년"
+                        />
                       </>
                     ) : (
                       <p className="comstock-result-placeholder">입력한 조건의 연간 사용량을 예측합니다.</p>
@@ -723,6 +910,13 @@ export default function Home() {
                       평균 오차(MAE): {result.test_mae.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}
                       {" · "}직전값 기준: {result.baseline_test_mae.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}
                     </p>
+                    <ActualValueForm
+                      predictionId={result.prediction_id}
+                      model="bdg2_next_hour"
+                      target={target}
+                      predictedValue={result.predicted_value}
+                      unit="원본 계량 단위 미확인"
+                    />
                   </>
                 ) : (
                   <p className="meter-demo-placeholder">버튼을 누르면 예측값을 보여줍니다.</p>
