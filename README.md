@@ -85,27 +85,37 @@ docker compose up --build
 
 종료하려면 같은 디렉터리에서 `docker compose down`을 실행합니다. 모델 파일은 이미지에 포함되며, 원본 학습 데이터는 컨테이너 실행에 필요하지 않습니다.
 
-## EC2에 Docker Compose로 배포
+## AWS CLI와 Docker Compose로 EC2 배포
 
-이번 실습의 배포 경로는 기존 ECS와 분리된 새 EC2 인스턴스입니다. 기존 인스턴스나 보안 그룹을 재사용하지 않습니다.
+배포 대상은 기존 ECS·EC2 인프라와 분리된 새 인스턴스입니다. 스크립트는 `building-energy-week08` 이름 태그를 사용하고, 기존 인스턴스의 ID가 지정되면 거부합니다. 전용 보안 그룹에는 TCP 3001(웹)과 8001(API)만 사용자가 지정한 단일 IPv4 CIDR에 허용하며 SSH는 열지 않습니다.
 
-1. 서울 리전에서 Ubuntu 24.04 x86_64, `t3.small` 이상, gp3 루트 볼륨 12 GiB로 새 인스턴스를 만듭니다. 이름 태그는 `building-energy-week08`로 지정합니다.
-2. 새 전용 보안 그룹을 만들고 TCP 3001(웹)과 8001(API)만 현재 접속 IP에 허용합니다. SSH(22)는 열지 않습니다. 이 데모 API에는 인증이 없으므로 인터넷 전체에 포트를 공개하지 마세요.
-3. 인스턴스 생성 화면의 사용자 데이터에 `scripts/ec2_bootstrap.sh` 내용을 넣습니다. 사용자 데이터는 Docker 및 Compose를 설치하고 현재 `feature/meter-models` 브랜치를 배포합니다. 인스턴스가 다시 시작될 때도 같은 배포 서비스를 실행해 최신 브랜치를 가져옵니다.
-4. 인스턴스가 `running`이 되고 상태 검사를 통과하면 웹 `http://<퍼블릭-IPv4>:3001`, API 상태 `http://<퍼블릭-IPv4>:8001/health`를 확인합니다.
-
-재배포와 중지는 AWS 콘솔에 이미 로그인된 CloudShell에서 수행할 수 있습니다. CloudShell에서 저장소를 받은 뒤 인스턴스 ID를 인수로 사용합니다.
+AWS 콘솔의 CloudShell에서 아래 절차를 실행합니다. `ALLOWED_CIDR`에는 접속할 컴퓨터의 공인 IPv4 주소에 `/32`를 붙여 넣으세요(예: `203.0.113.10/32`). CloudShell의 주소가 아니라 브라우저로 서비스에 접속할 컴퓨터의 주소여야 합니다.
 
 ```bash
 git clone --branch feature/meter-models https://github.com/yokumi12/building-energy.git
 cd building-energy
+export AWS_REGION=ap-northeast-2
+export ALLOWED_CIDR=내_공인_IP/32
+bash scripts/create_ec2.sh
+```
+
+생성 스크립트는 AWS CLI 로그인 상태를 확인하고, 기본 VPC와 서브넷, Ubuntu 24.04 AMI를 조회합니다. 전용 보안 그룹, 암호화된 gp3 볼륨 12 GiB, `t3.small` 인스턴스를 생성하고 `scripts/ec2_bootstrap.sh`를 사용자 데이터로 전달합니다. 사용자 데이터는 Docker와 Compose를 설치해 `feature/meter-models`를 순차 빌드·실행하고, systemd 배포 서비스를 등록합니다. 부팅될 때마다 이 서비스가 같은 Compose 설정으로 브랜치의 최신 코드를 받아 다시 빌드합니다.
+
+생성 스크립트가 출력한 인스턴스 ID를 기록합니다. 초기 부팅이 끝나면 CloudShell에서 다음을 실행해 재배포합니다.
+
+```bash
 bash scripts/deploy_ec2.sh i-인스턴스ID
+```
+
+이 명령은 AWS CLI로 `Name=building-energy-week08`인 인스턴스만 확인하고 중지 후 시작하여 부팅 배포를 다시 실행합니다. 스크립트는 매번 Docker Compose로 웹·API 이미지를 재빌드합니다. 코드 변경은 GitHub의 `feature/meter-models` 브랜치에 먼저 push해야 다음 실행에서 반영됩니다. 인스턴스가 정상화되면 브라우저에서 웹 `http://<출력된-퍼블릭-IPv4>:3001`과 API `http://<출력된-퍼블릭-IPv4>:8001/health`를 확인합니다. 중지·시작하면 공인 IPv4가 바뀔 수 있으므로 재배포 스크립트가 출력한 주소를 사용하세요.
+
+실습 후에는 다음 명령으로 전용 인스턴스를 중지합니다.
+
+```bash
 bash scripts/stop_ec2.sh i-인스턴스ID
 ```
 
-재배포 스크립트는 이름 태그가 `building-energy-week08`인 인스턴스만 대상으로 하며, 실행 중이면 중지 후 시작해 같은 부팅 배포 서비스를 다시 실행합니다. AWS CLI는 CloudShell의 로그인된 권한을 사용합니다. 실제 웹 화면과 `/health` 응답은 재시작이 끝난 뒤 브라우저에서 확인해야 합니다.
-
-비용을 줄이려면 사용 후 중지 스크립트를 실행하세요. 중지 중에는 컴퓨팅 비용이 멈추지만 EBS 볼륨은 남아 저장 비용이 발생할 수 있고, 실행 중에는 인스턴스와 공인 IPv4 주소 사용 비용이 발생할 수 있습니다. 삭제하지 않는 한 볼륨과 보안 그룹은 보존됩니다.
+중지 중에는 컴퓨팅 비용이 멈추지만 EBS 볼륨은 남아 저장 비용이 발생할 수 있습니다. 인스턴스를 실행하면 컴퓨팅 및 공인 IPv4 비용이 발생할 수 있습니다. 이 스크립트들은 인스턴스나 볼륨을 삭제하지 않습니다.
 
 ## BDG2 계량값 모델 별도 학습
 
