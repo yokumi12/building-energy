@@ -40,7 +40,7 @@ API_PORT=8001
 EOF
 
 cd "$app_dir"
-docker compose build --parallel 1
+docker compose --parallel 1 build
 docker compose up -d
 curl --fail --retry 12 --retry-delay 5 http://localhost:8001/health
 curl --fail --retry 12 --retry-delay 5 http://localhost:3001/
