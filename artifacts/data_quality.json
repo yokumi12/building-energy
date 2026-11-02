@@ -1,0 +1,82 @@
+{
+  "source_file": "ENB2012_data.xlsx",
+  "source_sha256": "0089fcffc1415e41e2ff63730cca5280efe54fc43d722dfde1b0aaa808e35dc4",
+  "processed_file": "data\\processed\\energy_efficiency.csv",
+  "rows": 768,
+  "columns": [
+    "relative_compactness",
+    "surface_area",
+    "wall_area",
+    "roof_area",
+    "overall_height",
+    "orientation",
+    "glazing_area",
+    "glazing_area_distribution",
+    "heating_load",
+    "cooling_load"
+  ],
+  "missing_values": {
+    "relative_compactness": 0,
+    "surface_area": 0,
+    "wall_area": 0,
+    "roof_area": 0,
+    "overall_height": 0,
+    "orientation": 0,
+    "glazing_area": 0,
+    "glazing_area_distribution": 0,
+    "heating_load": 0,
+    "cooling_load": 0
+  },
+  "exact_duplicate_rows": 0,
+  "feature_ranges": {
+    "relative_compactness": {
+      "min": 0.62,
+      "max": 0.98
+    },
+    "surface_area": {
+      "min": 514.5,
+      "max": 808.5
+    },
+    "wall_area": {
+      "min": 245.0,
+      "max": 416.5
+    },
+    "roof_area": {
+      "min": 110.25,
+      "max": 220.5
+    },
+    "overall_height": {
+      "min": 3.5,
+      "max": 7.0
+    },
+    "orientation": {
+      "min": 2.0,
+      "max": 5.0
+    },
+    "glazing_area": {
+      "min": 0.0,
+      "max": 0.4
+    },
+    "glazing_area_distribution": {
+      "min": 0.0,
+      "max": 5.0
+    }
+  },
+  "target_ranges": {
+    "heating_load": {
+      "min": 6.01,
+      "max": 43.1
+    },
+    "cooling_load": {
+      "min": 10.9,
+      "max": 48.03
+    }
+  },
+  "geometry_groups": 12,
+  "notes": [
+    "Source workbook first worksheet contains 768 simulated building-design records.",
+    "No missing values or exact duplicate records were found.",
+    "The source does not identify a physical measurement unit for target values; preserve source units.",
+    "Model performance on this simulated dataset is not a guarantee for real buildings."
+  ]
+}

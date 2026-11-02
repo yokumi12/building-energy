@@ -1,0 +1,116 @@
+{
+  "dataset": "Building Data Genome Project 2",
+  "site_id": "Eagle",
+  "site_location": "United States (site name anonymized)",
+  "feature_definition": {
+    "features": {
+      "previous_reading": "Same meter's reading one hour earlier",
+      "previous_day_reading": "Same meter's reading 24 hours earlier",
+      "previous_week_reading": "Same meter's reading 168 hours earlier",
+      "area_sqm": "Building floor area in square meters",
+      "building_use": "Primary building-use category",
+      "hour": "Hour of forecast time",
+      "day_of_week": "Day of week of forecast time",
+      "month": "Month of forecast time"
+    },
+    "targets": {
+      "cooling": "Next-hour chilled-water meter reading",
+      "heating": "Next-hour steam meter reading"
+    }
+  },
+  "building_count": 41,
+  "validation": {
+    "method": "separate validation buildings and dates before the final test period",
+    "training_buildings": 25,
+    "validation_buildings": 7,
+    "validation_start": "2017-11-02 00:00:00",
+    "validation_end": "2017-12-01 23:00:00"
+  },
+  "test": {
+    "method": "unseen buildings, final chronological 30 days",
+    "test_buildings": 9,
+    "test_start": "2017-12-02 00:00:00",
+    "test_end": "2017-12-31 23:00:00"
+  },
+  "targets": {
+    "cooling": {
+      "meter_type": "chilled water",
+      "selected_iteration": "iteration_1_structure",
+      "selected_model": "linear_regression",
+      "features": [
+        "previous_reading",
+        "area_sqm",
+        "building_use"
+      ],
+      "validation_mae_by_iteration": {
+        "iteration_1_structure": 25840.98228617289,
+        "iteration_2_time_and_history": 25853.08112061954,
+        "iteration_2_time_and_history_tree": 25923.59710929083
+      },
+      "validation_r2_by_iteration": {
+        "iteration_1_structure": 0.9654758947883548,
+        "iteration_2_time_and_history": 0.9652296073544425,
+        "iteration_2_time_and_history_tree": 0.9670698016141267
+      },
+      "training_rows": 529179,
+      "held_out_test_rows": 6478,
+      "held_out_test_buildings": 9,
+      "model_metrics": {
+        "mae": 21145.31594545477,
+        "rmse": 33823.12667463279,
+        "r2": 0.8887764525681622
+      },
+      "previous_reading_baseline_metrics": {
+        "mae": 15007.520072537822,
+        "rmse": 31486.738502765562,
+        "r2": 0.9036116395497846
+      }
+    },
+    "heating": {
+      "meter_type": "steam",
+      "selected_iteration": "iteration_2_time_and_history_tree",
+      "selected_model": "hist_gradient_boosting",
+      "features": [
+        "previous_reading",
+        "area_sqm",
+        "building_use",
+        "previous_day_reading",
+        "previous_week_reading",
+        "hour",
+        "day_of_week",
+        "month"
+      ],
+      "validation_mae_by_iteration": {
+        "iteration_1_structure": 87.69101857258498,
+        "iteration_2_time_and_history": 81.32335151093827,
+        "iteration_2_time_and_history_tree": 79.72819527888244
+      },
+      "validation_r2_by_iteration": {
+        "iteration_1_structure": 0.9619251073835394,
+        "iteration_2_time_and_history": 0.9642868131888168,
+        "iteration_2_time_and_history_tree": 0.9651043862149478
+      },
+      "training_rows": 501368,
+      "held_out_test_rows": 6216,
+      "held_out_test_buildings": 9,
+      "model_metrics": {
+        "mae": 55.81942365865382,
+        "rmse": 94.76236178123219,
+        "r2": 0.9296196154096602
+      },
+      "previous_reading_baseline_metrics": {
+        "mae": 41.62013745173745,
+        "rmse": 92.73920847178033,
+        "r2": 0.9325927432672739
+      }
+    }
+  },
+  "limitations": [
+    "Overseas demonstration data from one anonymized US site, not a Korean building model.",
+    "Meter units and conventions are not stated; values are kept on their original scale.",
+    "Heating uses steam meters and cooling uses chilled-water meters.",
+    "R² is a regression metric, not classification accuracy; MAE is also reported.",
+    "The baseline that copies the previous reading can outperform the structure-aware model.",
+    "Forecast is one hour ahead and requires the latest meter reading for the selected building."
+  ]
+}
