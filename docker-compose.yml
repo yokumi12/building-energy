@@ -3,15 +3,17 @@ services:
     build:
       context: .
       dockerfile: api/Dockerfile
+    environment:
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:3001,http://127.0.0.1:3001}
     ports:
-      - "8001:8000"
+      - "${API_PORT:-8001}:8000"
   web:
     build:
       context: web
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE_URL: http://localhost:8001
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8001}
     ports:
-      - "3001:3000"
+      - "${WEB_PORT:-3001}:3000"
     depends_on:
       - api

@@ -4,6 +4,7 @@ import json
 import logging
 import math
 from numbers import Real
+import os
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -32,6 +33,14 @@ DISCLAIMER = (
     "실제 건물의 에너지 사용량이나 설계 적합성을 보장하지 않습니다."
 )
 prediction_logger = logging.getLogger("uvicorn.error")
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "CORS_ALLOW_ORIGINS",
+        "http://localhost:3001,http://127.0.0.1:3001",
+    ).split(",")
+    if origin.strip()
+]
 
 
 def log_prediction_event(event: dict[str, object]) -> None:
@@ -64,7 +73,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Building Heating and Cooling Load API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001", "http://127.0.0.1:3001"],
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
