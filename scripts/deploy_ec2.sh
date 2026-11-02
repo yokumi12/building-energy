@@ -45,6 +45,16 @@ if [ -z "$public_ip" ]; then
 fi
 
 echo "EC2 status checks passed. The boot service is pulling the current branch and rebuilding Compose containers."
-echo "Wait a few minutes, then verify the app from an allowed browser:"
-echo "Web: http://${public_ip}:3001"
-echo "API health: http://${public_ip}:8001/health"
+distribution="$(aws cloudfront list-distributions \
+  --query "DistributionList.Items[?Comment=='building-energy-week08'].DomainName | [0]" \
+  --output text \
+  --no-cli-pager)"
+if [ "$distribution" != "None" ] && [ -n "$distribution" ]; then
+  echo "Stable EC2 origin IPv4: ${public_ip}"
+  echo "Wait for the boot service and CloudFront deployment, then verify:"
+  echo "Web (HTTPS): https://${distribution}"
+  echo "API health (HTTPS): https://${distribution}/api/health"
+else
+  echo "No building-energy-week08 CloudFront distribution was found."
+  echo "Run scripts/create_cloudfront.sh before exposing the app publicly."
+fi

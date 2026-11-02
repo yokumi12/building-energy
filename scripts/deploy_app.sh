@@ -2,16 +2,10 @@
 set -euo pipefail
 
 app_dir="/home/ubuntu/building-energy"
-token="$(curl --fail --silent --show-error -X PUT \
-  -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600' \
-  http://169.254.169.254/latest/api/token)"
-public_ip="$(curl --fail --silent --show-error \
-  -H "X-aws-ec2-metadata-token: ${token}" \
-  http://169.254.169.254/latest/meta-data/public-ipv4)"
 
 cat > "${app_dir}/.env" <<EOF
-NEXT_PUBLIC_API_BASE_URL=http://${public_ip}:8001
-CORS_ALLOW_ORIGINS=http://${public_ip}:3001
+NEXT_PUBLIC_API_BASE_URL=/api
+CORS_ALLOW_ORIGINS=http://localhost:3001,http://127.0.0.1:3001
 WEB_PORT=3001
 API_PORT=8001
 EOF
