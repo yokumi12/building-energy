@@ -588,7 +588,7 @@ export default function Home() {
             <p className="kicker"><span /> 건물 에너지 설계 도구</p>
             <h1>더 나은 설계,<br /><em>더 똑똑한 에너지.</em></h1>
             <p className="hero-description">예측할 항목을 선택하고<br className="desktop-break" /> 건물 조건에 따른 부하를 확인해보세요.</p>
-            <div className="hero-note"><span className="note-icon">i</span> 시뮬레이션 데이터 기반의 교육용 예측입니다.</div>
+            <div className="hero-note"><span className="note-icon">i</span> UCI 시뮬레이션 기반 예측이며, 실제 사용량이 아닙니다.</div>
           </div>
           <div className="building-visual" aria-hidden="true">
             <div className="sun-orbit"><span className="sun" /></div>
