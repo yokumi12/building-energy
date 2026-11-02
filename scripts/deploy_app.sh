@@ -19,5 +19,7 @@ EOF
 cd "$app_dir"
 docker compose --parallel 1 build
 docker compose up -d
-curl --fail --retry 12 --retry-delay 5 http://localhost:8001/health
-curl --fail --retry 12 --retry-delay 5 http://localhost:3001/
+curl --fail --silent --show-error --retry 12 --retry-all-errors \
+  --retry-delay 5 --output /dev/null http://localhost:8001/health
+curl --fail --silent --show-error --retry 12 --retry-all-errors \
+  --retry-delay 5 --output /dev/null http://localhost:3001/
