@@ -26,19 +26,33 @@ instance_json="$(aws ec2 describe-instances \
   --instance-ids "$instance_id" \
   --output json \
   --no-cli-pager)"
-read -r actual_name state vpc_id security_group_ids <<< "$(python3 -c '
+read -r actual_name state vpc_id security_group_ids origin_ip origin_dns <<< "$(python3 -c '
 import json, sys
 instance = json.load(sys.stdin)["Reservations"][0]["Instances"][0]
 tags = {tag["Key"]: tag["Value"] for tag in instance.get("Tags", [])}
 print(tags.get("Name", ""), instance["State"]["Name"], instance["VpcId"],
-      ",".join(group["GroupId"] for group in instance.get("SecurityGroups", [])))
+      ",".join(group["GroupId"] for group in instance.get("SecurityGroups", [])),
+      instance.get("PublicIpAddress", ""),
+      instance.get("PublicDnsName", ""))
 ' <<< "$instance_json")"
 if [ "$actual_name" != "$instance_name" ]; then
   echo "Refusing to configure instance '$instance_id': expected Name=$instance_name, found '$actual_name'." >&2
   exit 1
 fi
-if [ "$state" != "running" ] && [ "$state" != "stopped" ]; then
-  echo "Instance must be running or stopped; current state is '$state'." >&2
+if [ "$state" != "running" ]; then
+  echo "Instance must be running with a public IPv4 address before CloudFront setup; current state is '$state'." >&2
+  exit 1
+fi
+if [ -z "$vpc_id" ] || [ -z "$security_group_ids" ]; then
+  echo "Could not read the instance network settings." >&2
+  exit 1
+fi
+if [ -z "$origin_ip" ]; then
+  echo "Instance is running but has no public IPv4 address." >&2
+  exit 1
+fi
+if [ -z "$origin_dns" ]; then
+  echo "Instance is running but has no public DNS hostname for CloudFront." >&2
   exit 1
 fi
 
@@ -54,77 +68,6 @@ if [ "$security_group_id" = "None" ] || [ -z "$security_group_id" ]; then
 fi
 if [ "${security_group_ids//[^,]}" != "" ]; then
   echo "Instance has additional security groups; refusing to assume they do not expose the app ports." >&2
-  exit 1
-fi
-
-instance_eips="$(aws ec2 describe-addresses \
-  --region "$region" \
-  --filters "Name=instance-id,Values=$instance_id" \
-  --query 'Addresses[].AllocationId' \
-  --output text \
-  --no-cli-pager)"
-if [ -n "$instance_eips" ] && [ "$instance_eips" != "None" ]; then
-  read -r -a attached_eips <<< "$instance_eips"
-  if [ "${#attached_eips[@]}" -ne 1 ]; then
-    echo "Expected at most one Elastic IP on the dedicated instance; found ${#attached_eips[@]}." >&2
-    exit 1
-  fi
-  allocation_id="${attached_eips[0]}"
-else
-  tagged_eips="$(aws ec2 describe-addresses \
-    --region "$region" \
-    --filters "Name=tag:Purpose,Values=building-energy-week08" \
-    --query 'Addresses[].AllocationId' \
-    --output text \
-    --no-cli-pager)"
-  if [ -n "$tagged_eips" ] && [ "$tagged_eips" != "None" ]; then
-    read -r -a existing_eips <<< "$tagged_eips"
-    if [ "${#existing_eips[@]}" -ne 1 ]; then
-      echo "Expected at most one Elastic IP tagged for this project; found ${#existing_eips[@]}." >&2
-      exit 1
-    fi
-    allocation_id="${existing_eips[0]}"
-  else
-    allocation_id="$(aws ec2 allocate-address \
-      --region "$region" \
-      --domain vpc \
-      --tag-specifications 'ResourceType=elastic-ip,Tags=[{Key=Name,Value=building-energy-week08-origin},{Key=Purpose,Value=building-energy-week08}]' \
-      --query AllocationId \
-      --output text \
-      --no-cli-pager)"
-  fi
-
-  address_json="$(aws ec2 describe-addresses \
-    --region "$region" \
-    --allocation-ids "$allocation_id" \
-    --output json \
-    --no-cli-pager)"
-  address_instance="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["Addresses"][0].get("InstanceId",""))' <<< "$address_json")"
-  if [ -n "$address_instance" ]; then
-    echo "Elastic IP $allocation_id is already associated with another instance ($address_instance)." >&2
-    exit 1
-  fi
-  aws ec2 associate-address \
-    --region "$region" \
-    --instance-id "$instance_id" \
-    --allocation-id "$allocation_id" \
-    --no-cli-pager >/dev/null
-fi
-
-aws ec2 create-tags \
-  --region "$region" \
-  --resources "$allocation_id" \
-  --tags Key=Name,Value=building-energy-week08-origin Key=Purpose,Value=building-energy-week08 \
-  --no-cli-pager
-
-origin_ip="$(aws ec2 describe-addresses \
-  --region "$region" \
-  --allocation-ids "$allocation_id" \
-  --query 'Addresses[0].PublicIp' \
-  --output text \
-  --no-cli-pager)"
-if [ -z "$origin_ip" ] || [ "$origin_ip" = "None" ]; then
-  echo "Could not resolve the Elastic IP for the CloudFront origin." >&2
   exit 1
 fi
 
@@ -256,7 +199,7 @@ if [ "$distribution_id" = "None" ] || [ -z "$distribution_id" ]; then
   trap 'rm -f "$config_file"' EXIT
   jq -n \
     --arg caller_reference "building-energy-week08-${instance_id}" \
-    --arg origin_domain "$origin_ip" \
+    --arg origin_domain "$origin_dns" \
     --arg function_arn "$function_arn" \
     --arg cache_disabled_id "$cache_disabled_id" \
     --arg cache_optimized_id "$cache_optimized_id" \
@@ -339,6 +282,8 @@ else
   echo "Reusing existing CloudFront distribution $distribution_id ($distribution_domain)."
 fi
 
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+bash "$script_dir/update_cloudfront_origin.sh" "$instance_id" "$distribution_id"
 echo "Waiting for CloudFront deployment; this can take several minutes."
 aws cloudfront wait distribution-deployed --id "$distribution_id" --no-cli-pager
 curl --fail --silent --show-error --retry 10 --retry-all-errors \
@@ -373,5 +318,5 @@ fi
 
 echo "HTTPS web: https://${distribution_domain}"
 echo "HTTPS API health: https://${distribution_domain}/api/health"
-echo "Elastic IP origin: ${origin_ip} (CloudFront-to-origin traffic uses HTTP)."
+echo "EC2 origin hostname: ${origin_dns} (${origin_ip}; CloudFront-to-origin traffic uses HTTP; deploy_ec2.sh updates this after restart)."
 echo "CloudFront origin-facing IPs are allowed on TCP 3001-8001; the app listens only on 3001 and 8001."

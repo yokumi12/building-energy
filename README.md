@@ -100,17 +100,17 @@ bash scripts/create_ec2.sh
 
 생성 스크립트는 AWS CLI 로그인 상태를 확인하고, 기본 VPC와 서브넷, Ubuntu 24.04 AMI를 조회합니다. 전용 보안 그룹, 암호화된 gp3 볼륨 12 GiB, `t3.small` 인스턴스를 생성하고 `scripts/ec2_bootstrap.sh`를 사용자 데이터로 전달합니다. 사용자 데이터는 Docker와 Compose를 설치해 `feature/meter-models`를 순차 빌드·실행하고, systemd 배포 서비스를 등록합니다. 부팅될 때마다 이 서비스가 같은 Compose 설정으로 브랜치의 최신 코드를 받아 다시 빌드합니다.
 
-생성 스크립트가 출력한 인스턴스 ID를 기록합니다. 최초 부팅이 끝난 뒤 고정 IPv4 주소(EIP)를 전용 인스턴스에 연결하고 CloudFront를 만드는 명령을 실행합니다.
+생성 스크립트가 출력한 인스턴스 ID를 기록합니다. 최초 부팅이 끝난 뒤 CloudFront를 만드는 명령을 실행합니다.
 
 ```bash
 bash scripts/create_cloudfront.sh i-인스턴스ID
 ```
 
-스크립트는 `Name=building-energy-week08`인 전용 인스턴스와 그 전용 보안 그룹만 확인합니다. 이미 연결된 EIP가 있으면 재사용하고, 없으면 프로젝트 태그가 붙은 EIP를 할당하여 연결합니다. 이후 보안 그룹은 CloudFront 관리형 origin-facing prefix list에만 TCP 3001–8001 포트를 허용합니다(컨테이너는 3001과 8001에서만 수신). 관리형 목록을 사용하는 보안 그룹 규칙 수를 절약하기 위해 두 포트를 하나의 범위 규칙으로 묶었습니다. CloudFront 기본 HTTPS 인증서가 적용된 배포를 생성합니다. 웹 앱은 같은 HTTPS origin의 `/api` 경로로 API를 요청하며, CloudFront Function이 이 접두사를 제거해 FastAPI 경로로 전달합니다.
+스크립트는 `Name=building-energy-week08`인 전용 인스턴스와 그 전용 보안 그룹만 확인합니다. EIP를 새로 할당하거나 다른 인스턴스의 주소를 재사용하지 않고, 현재 EC2 퍼블릭 DNS 호스트명(현재 퍼블릭 IPv4에 연결됨)을 CloudFront origin으로 설정합니다. 보안 그룹은 CloudFront 관리형 origin-facing prefix list에만 TCP 3001–8001 포트를 허용합니다(컨테이너는 3001과 8001에서만 수신). 관리형 목록을 사용하는 보안 그룹 규칙 수를 절약하기 위해 두 포트를 하나의 범위 규칙으로 묶었습니다. CloudFront 기본 HTTPS 인증서가 적용된 배포를 생성합니다. 웹 앱은 같은 HTTPS origin의 `/api` 경로로 API를 요청하며, CloudFront Function이 이 접두사를 제거해 FastAPI 경로로 전달합니다.
 
 배포가 완료되면 스크립트가 출력한 `https://<distribution>.cloudfront.net` 주소를 휴대폰에서도 사용할 수 있습니다. API 확인 주소는 `https://<distribution>.cloudfront.net/api/health`입니다. 브라우저에서 CloudFront까지는 HTTPS이며, 사용자 도메인/인증서 없이 EC2 origin까지 TLS를 구성하지 않으므로 CloudFront와 EC2 사이 구간은 HTTP입니다.
 
-CloudFront 배포와 EIP에는 AWS 요금이 발생할 수 있습니다. 특히 연결된 상태의 EIP는 EC2를 중지해도 공인 IPv4 요금이 발생할 수 있습니다. 중지·시작 시 EIP는 유지되어 CloudFront origin 주소가 바뀌지 않지만, 비용을 줄이려면 사용하지 않는 기간에는 CloudFront/EIP 정리 여부를 별도로 결정하세요.
+CloudFront 요청에는 AWS 요금이 발생할 수 있습니다. EC2 중지·시작으로 퍼블릭 IPv4와 퍼블릭 DNS 호스트명이 바뀌면 `deploy_ec2.sh`가 CloudFront의 웹·API origin을 새 호스트명으로 갱신하고 배포가 완료될 때까지 기다린 뒤, HTTPS 웹과 API 상태를 확인합니다. 사용자가 공유하는 CloudFront HTTPS 주소는 유지되지만, 반복 배포 때 CloudFront 전파 시간만큼 더 기다려야 합니다.
 
 초기 HTTPS 구성이 끝난 후 코드 변경을 배포할 때는 다음을 실행합니다.
 
@@ -118,7 +118,7 @@ CloudFront 배포와 EIP에는 AWS 요금이 발생할 수 있습니다. 특히 
 bash scripts/deploy_ec2.sh i-인스턴스ID
 ```
 
-이 명령은 AWS CLI로 `Name=building-energy-week08`인 인스턴스만 확인하고 중지 후 시작하여 부팅 배포를 다시 실행합니다. 스크립트는 매번 Docker Compose로 웹·API 이미지를 재빌드합니다. 코드 변경은 GitHub의 `feature/meter-models` 브랜치에 먼저 push해야 다음 실행에서 반영됩니다. EIP가 CloudFront origin 주소를 유지하므로 사용자는 스크립트가 출력한 고정 HTTPS 주소로 접속합니다. 재배포 직후 웹 컨테이너가 준비될 때까지 잠시 기다린 후 확인하세요.
+이 명령은 AWS CLI로 `Name=building-energy-week08`인 인스턴스만 확인하고 중지 후 시작하여 부팅 배포를 다시 실행합니다. 스크립트는 매번 Docker Compose로 웹·API 이미지를 재빌드합니다. 코드 변경은 GitHub의 `feature/meter-models` 브랜치에 먼저 push해야 다음 실행에서 반영됩니다. 인스턴스의 주소가 바뀌면 스크립트가 CloudFront origin을 갱신하고 웹·API 점검까지 수행합니다. 재배포 후 스크립트가 출력하는 HTTPS CloudFront 주소를 사용하세요.
 
 실습 후에는 다음 명령으로 전용 인스턴스를 중지합니다.
 
@@ -126,7 +126,7 @@ bash scripts/deploy_ec2.sh i-인스턴스ID
 bash scripts/stop_ec2.sh i-인스턴스ID
 ```
 
-중지 중에는 컴퓨팅 비용이 멈추지만 EBS 볼륨은 남아 저장 비용이 발생할 수 있습니다. CloudFront와 연결된 EIP는 별도 정리 전까지 유지되며 요금이 발생할 수 있습니다. 이 스크립트들은 인스턴스, 볼륨, CloudFront 배포 또는 EIP를 삭제하지 않습니다.
+중지 중에는 컴퓨팅 비용이 멈추지만 EBS 볼륨은 남아 저장 비용이 발생할 수 있습니다. CloudFront 배포는 별도 정리 전까지 유지되며 요청량에 따른 요금이 발생할 수 있습니다. 이 스크립트들은 인스턴스, 볼륨 또는 CloudFront 배포를 삭제하지 않습니다.
 
 ## BDG2 계량값 모델 별도 학습
 

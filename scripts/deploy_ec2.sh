@@ -8,6 +8,7 @@ fi
 
 instance_id="$1"
 region="${AWS_REGION:-ap-northeast-2}"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 instance_json="$(aws ec2 describe-instances \
   --region "$region" \
   --instance-ids "$instance_id" \
@@ -46,14 +47,23 @@ fi
 
 echo "EC2 status checks passed. The boot service is pulling the current branch and rebuilding Compose containers."
 distribution="$(aws cloudfront list-distributions \
-  --query "DistributionList.Items[?Comment=='building-energy-week08'].DomainName | [0]" \
+  --query "DistributionList.Items[?Comment=='building-energy-week08'].Id | [0]" \
   --output text \
   --no-cli-pager)"
 if [ "$distribution" != "None" ] && [ -n "$distribution" ]; then
-  echo "Stable EC2 origin IPv4: ${public_ip}"
-  echo "Wait for the boot service and CloudFront deployment, then verify:"
-  echo "Web (HTTPS): https://${distribution}"
-  echo "API health (HTTPS): https://${distribution}/api/health"
+  bash "$script_dir/update_cloudfront_origin.sh" "$instance_id" "$distribution"
+  distribution_domain="$(aws cloudfront get-distribution \
+    --id "$distribution" \
+    --query 'Distribution.DomainName' \
+    --output text \
+    --no-cli-pager)"
+  curl --fail --silent --show-error --retry 30 --retry-all-errors \
+    --retry-delay 5 --output /dev/null "https://${distribution_domain}/api/health"
+  curl --fail --silent --show-error --retry 30 --retry-all-errors \
+    --retry-delay 5 --output /dev/null "https://${distribution_domain}/"
+  echo "EC2 status, CloudFront origin update, web, and API checks passed."
+  echo "Web (HTTPS): https://${distribution_domain}"
+  echo "API health (HTTPS): https://${distribution_domain}/api/health"
 else
   echo "No building-energy-week08 CloudFront distribution was found."
   echo "Run scripts/create_cloudfront.sh before exposing the app publicly."
