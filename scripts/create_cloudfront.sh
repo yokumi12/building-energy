@@ -144,6 +144,39 @@ rules_json="$(aws ec2 describe-security-group-rules \
   --filters "Name=group-id,Values=$security_group_id" \
   --output json \
   --no-cli-pager)"
+unexpected_rule_ids="$(python3 -c '
+import json, sys
+rules = json.load(sys.stdin)["SecurityGroupRules"]
+prefix_list_id = sys.argv[1]
+ports = {22, 3001, 8001}
+unexpected = []
+for rule in rules:
+    if rule["IsEgress"]:
+        continue
+    protocol = rule.get("IpProtocol")
+    first, last = rule.get("FromPort"), rule.get("ToPort")
+    exposes_app = protocol == "-1" or (
+        protocol == "tcp" and first is not None and last is not None
+        and first <= 8001 and last >= 3001
+    )
+    if not exposes_app:
+        continue
+    is_cloudfront = (
+        protocol == "tcp" and first == 3001 and last == 8001
+        and rule.get("PrefixListId") == prefix_list_id
+    )
+    is_legacy = (
+        protocol == "tcp" and first == last and first in ports
+        and rule.get("CidrIpv4") == "210.181.166.4/32"
+    )
+    if not is_cloudfront and not is_legacy:
+        unexpected.append(rule["SecurityGroupRuleId"])
+print(" ".join(unexpected))
+' "$prefix_list_id" <<< "$rules_json")"
+if [ -n "$unexpected_rule_ids" ]; then
+  echo "Unexpected security-group ingress rules could expose the app; inspect these rule IDs before retrying: $unexpected_rule_ids" >&2
+  exit 1
+fi
 has_cloudfront_rule="$(python3 -c '
 import json, sys
 rules = json.load(sys.stdin)["SecurityGroupRules"]
@@ -297,8 +330,6 @@ if [ "$distribution_id" = "None" ] || [ -z "$distribution_id" ]; then
   distribution_id="$(jq -r '.Distribution.Id' <<< "$distribution_result")"
   distribution_domain="$(jq -r '.Distribution.DomainName' <<< "$distribution_result")"
   echo "Created CloudFront distribution $distribution_id ($distribution_domain)."
-  echo "Waiting for CloudFront deployment; this can take several minutes."
-  aws cloudfront wait distribution-deployed --id "$distribution_id" --no-cli-pager
 else
   distribution_domain="$(aws cloudfront get-distribution \
     --id "$distribution_id" \
@@ -308,6 +339,8 @@ else
   echo "Reusing existing CloudFront distribution $distribution_id ($distribution_domain)."
 fi
 
+echo "Waiting for CloudFront deployment; this can take several minutes."
+aws cloudfront wait distribution-deployed --id "$distribution_id" --no-cli-pager
 curl --fail --silent --show-error --retry 10 --retry-all-errors \
   --retry-delay 5 --output /dev/null "https://${distribution_domain}/"
 curl --fail --silent --show-error --retry 10 --retry-all-errors \
