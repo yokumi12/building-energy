@@ -165,7 +165,7 @@ docker compose up --build
 
 이 절차는 인터넷에 서비스를 공개할 때만 필요합니다. 로컬에서 시험하려면 앞의 Docker 빠른 시작만 사용하세요. AWS 계정과 해당 리소스를 만들 권한이 필요하며 EC2, 저장 공간, CloudFront 사용 요금이 발생할 수 있습니다. AWS 콘솔에서 서울 리전(`ap-northeast-2`)을 선택한 뒤 CloudShell을 엽니다. 이미 전용 인스턴스가 있다면 `create_ec2.sh`를 다시 실행하지 말고 아래의 재실행 절차를 사용하세요.
 
-새 담당자가 AWS 권한 확인부터 새 EC2/CloudFront 생성, 기능 검증, 재실행, 중지까지 진행하는 상세 절차는 [새 담당자를 위한 AWS 배포 인수 문서](./DEPLOYMENT_HANDOFF.md)를 참고하세요. 실제 다른 사람의 새 환경 배포와 리뷰는 별도로 수행해 완료 여부를 기록해야 합니다.
+AWS 권한 확인부터 EC2/CloudFront 생성, 기능 검증, 재실행, 중지까지의 상세 절차는 [새 담당자를 위한 AWS 배포 인수 문서](./DEPLOYMENT_HANDOFF.md)를 참고하세요. 다른 담당자의 독립 배포와 완전히 새로운 AWS 환경 검증은 이번 개인 작업 범위에서 제외했습니다. PR 팀원 리뷰는 별도 진행 항목입니다.
 
 배포 대상은 기존 ECS·EC2 인프라와 분리된 전용 인스턴스 `building-energy-week08`입니다. 배포 스크립트는 이 이름 태그를 확인하며, 다른 인스턴스 ID가 지정되면 거부합니다. 웹·API 포트는 처음부터 인터넷에 열지 않고, CloudFront 구성 후 AWS 관리형 CloudFront origin-facing IP 목록에만 허용합니다. 브라우저는 CloudFront 기본 HTTPS 주소를 사용하므로 별도 도메인을 구매할 필요가 없습니다.
 
