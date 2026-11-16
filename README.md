@@ -1,8 +1,66 @@
 # 건물 난방·냉방 부하 예측기
 
-건물 설계 초기 단계에서 난방·냉방 부하를 함께 비교해 보려는 기획자와 학습자를 위한 교육용 MLOps 서비스입니다. 사용자는 상대 컴팩트도, 표면적·벽면적·지붕면적, 전체 높이, 방향, 유리 면적과 분포 등 8가지 건물 설계값을 입력하고, UCI Energy Efficiency 시뮬레이션 데이터로 학습한 모델에서 난방 부하와 냉방 부하 예측값을 받습니다. 이 결과는 실제 건물의 계량 에너지 사용량이나 설계 적합성 판정이 아닙니다.
+**서비스 한 문장:** 건물 설계안의 구조와 창 조건을 입력해 UCI Energy Efficiency 시뮬레이션 데이터에 기반한 난방·냉방 부하 예측값을 비교해 보는 학습용 웹 서비스입니다. 주요 사용자는 건물 설계를 학습하거나 초기 설계안을 살펴보는 학생·기획자입니다. 결과는 실제 건물의 계량 에너지 사용량이나 설계 적합성 판정이 아닙니다.
+
+BDG2 다음 시간 계량값과 ComStock 연간 에너지 예측은 같은 서비스 목표를 학습·시연하기 위한 **별도 데모**입니다. 데이터와 예측 대상, 단위가 UCI 기본 서비스와 다르므로 결과를 서로 직접 비교하지 않습니다.
 
 구현 패턴은 교수님이 제공한 지하철 프로젝트에서 참고했지만, 데이터와 예측 대상은 UCI Energy Efficiency 데이터셋에 맞게 분리했습니다.
+
+## 처음 실행하는 사람을 위한 빠른 시작 (Windows)
+
+처음 프로젝트를 실행한다면 이 절차를 권장합니다. Docker Desktop이 Python·Node.js 패키지를 컨테이너 안에 설치하므로, 로컬에 Python이나 Node.js 개발 환경을 따로 구성할 필요가 없습니다. **AWS 계정이나 클라우드 권한도 필요하지 않습니다.** 아래 명령은 로컬 컴퓨터에서만 서비스를 실행하며 AWS 자원을 생성하지 않습니다.
+
+### 1. 필요한 프로그램 설치
+
+1. [Git for Windows](https://git-scm.com/download/win)을 설치합니다. 설치 중 별도 설정을 바꾸지 않아도 기본값으로 사용할 수 있습니다.
+2. [Docker Desktop for Windows](https://docs.docker.com/desktop/setup/install/windows-install/)를 설치합니다. 설치가 끝나면 Docker Desktop을 실행하고, Docker가 실행 중이라는 표시가 나올 때까지 기다립니다. 설치 과정에서 WSL 2를 사용하라는 안내가 나오면 안내에 따라 설치한 뒤 컴퓨터를 다시 시작합니다.
+3. Windows 시작 메뉴에서 **PowerShell**을 엽니다. 이후 명령은 별도 안내가 없는 한 PowerShell 창에 한 번에 한 줄씩 입력합니다.
+
+### 2. 프로젝트 내려받기
+
+PowerShell에서 아래 명령을 차례대로 실행합니다. 프로젝트를 저장할 위치는 예시로 `Documents`를 사용합니다.
+
+```powershell
+cd $HOME\Documents
+git clone --branch feature/meter-models https://github.com/yokumi12/building-energy.git
+cd building-energy
+```
+
+`git clone`은 프로젝트 파일을 컴퓨터로 복사하는 명령입니다. 다운로드가 끝나면 `cd building-energy`로 프로젝트 폴더에 들어갑니다. 이후 실행과 종료 명령은 이 폴더에서 입력해야 합니다.
+
+### 3. 웹 화면과 API 실행
+
+Docker Desktop이 실행 중인지 확인한 뒤, 프로젝트 폴더에서 다음을 실행합니다.
+
+```powershell
+docker compose up --build
+```
+
+첫 실행은 웹·API 이미지를 내려받고 빌드하므로 몇 분 걸릴 수 있습니다. PowerShell에 오류가 나오지 않고 서비스 로그가 계속 표시되면 창을 닫지 말고 브라우저에서 다음 주소를 엽니다.
+
+- 서비스 화면: <http://localhost:3001>
+- API 상태 확인: <http://localhost:8001/health> — 정상이라면 성공 응답을 반환합니다.
+- API 사용 문서: <http://localhost:8001/docs>
+
+API 문서는 요청을 직접 시험해 보는 페이지입니다. 일반 사용은 서비스 화면에서 시작하면 됩니다. 예측 모델 파일은 프로젝트에 포함되어 있으므로, 이 실행 경로에서는 데이터셋을 다시 내려받거나 모델을 다시 학습할 필요가 없습니다.
+
+### 4. 실행 종료와 다음 실행
+
+실행 로그가 표시되는 PowerShell 창에서 `Ctrl+C`를 눌러 서비스를 중지한 다음, 같은 프로젝트 폴더에서 아래 명령을 실행해 컨테이너를 정리합니다.
+
+```powershell
+docker compose down
+```
+
+나중에 다시 실행하려면 Docker Desktop을 먼저 켜고 PowerShell에서 프로젝트 폴더로 이동한 뒤 `docker compose up`을 실행합니다. 코드를 바꾼 뒤 변경 내용을 반영해야 할 때만 `docker compose up --build`를 사용합니다.
+
+### 자주 막히는 경우
+
+- **`docker`를 찾을 수 없다는 오류:** Docker Desktop 설치가 끝났는지 확인하고 PowerShell을 새로 연 뒤 다시 시도합니다.
+- **Docker 엔진에 연결할 수 없다는 오류:** Docker Desktop을 실행하고 상태가 준비됨으로 바뀔 때까지 기다린 뒤 다시 실행합니다.
+- **3001 또는 8001 포트를 사용할 수 없다는 오류:** 기존에 실행해 둔 프로젝트가 있는지 확인하고, 그 프로젝트의 터미널에서 `Ctrl+C`와 `docker compose down`을 실행합니다. 다른 앱이 포트를 쓰는 경우 해당 앱을 종료하거나 관리자에게 문의합니다.
+- **화면은 열리지만 API가 응답하지 않음:** 두 컨테이너의 로그가 표시되는 PowerShell 창에 오류가 있는지 확인합니다. 종료 후 프로젝트 폴더에서 `docker compose up --build`로 다시 실행할 수 있습니다.
+- **프로젝트 폴더를 찾을 수 없음:** clone할 때 사용한 경로(위 예시에서는 `$HOME\Documents\building-energy`)로 이동한 다음 명령을 실행합니다.
 
 ## 데이터셋
 
@@ -33,9 +91,9 @@
 
 BDG2는 UCI 설계 데이터 표나 현재 모델에 합쳐지지 않습니다. 시계열 계량값은 예측 대상이 다르고 현장에 따라 단위도 달라, 시간 정보를 고려하는 별도의 특성 및 평가 파이프라인이 필요합니다. 냉수는 냉방과 관련되고, 온수와 증기는 난방과 관련됩니다. 이를 UCI의 시뮬레이션 부하 예측 대상과 직접 비교하지 마세요.
 
-## 데이터 준비 및 모델 학습
+## 데이터 준비 및 모델 학습 (선택)
 
-이 디렉터리에서 다음 명령을 실행합니다.
+일반적인 앱 실행에는 필요하지 않습니다. 학습 모델 파일은 저장소에 포함되어 있으므로, 모델을 새로 만들거나 학습 결과를 재현할 때만 실행합니다. 프로젝트 루트에서 개발용 직접 실행 안내에 따라 `.venv`를 만들고 활성화한 뒤 다음을 실행합니다. `data/raw/ENB2012_data.xlsx` 원본 파일도 필요합니다.
 
 ```powershell
 python -m pip install -r api\requirements.txt
@@ -45,15 +103,31 @@ python scripts\train.py
 
 데이터 검증 결과는 `artifacts/data_quality.json`에 저장됩니다. 기준선 및 랜덤 포레스트 모델의 MAE, RMSE, R²는 `artifacts/metrics.json`에 저장됩니다. 평가는 거의 같은 설계가 학습 데이터와 시험 데이터에 무작위로 나뉘지 않도록, 결정론적 그룹 분할을 사용해 전체 건물 형상 그룹을 통째로 분리합니다.
 
-## API 실행
+## 개발용 직접 실행 (Docker 없이)
+
+이 방법은 API와 웹 앱을 각각 실행하거나 코드를 수정하며 개발할 때 사용합니다. [Python 3.12](https://www.python.org/downloads/), [Node.js 22](https://nodejs.org/en/download), Git이 설치되어 있어야 합니다. 처음 실행하는 경우에는 위의 Docker 방법이 더 간단합니다.
+
+### API 실행
+
+PowerShell에서 프로젝트 루트 폴더로 이동한 뒤 가상 환경을 만들고 의존성을 설치합니다. 위의 빠른 시작 경로로 clone했다면 다음 명령으로 이동합니다. 다른 위치에 clone했다면 해당 경로로 이동합니다. 가상 환경은 이 프로젝트의 Python 패키지를 다른 프로젝트와 분리합니다.
 
 ```powershell
+cd $HOME\Documents\building-energy
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r api\requirements.txt
 python -m uvicorn app.main:app --app-dir api --reload --port 8001
 ```
 
-API 문서: `http://localhost:8001/docs`
+명령을 실행한 PowerShell 창은 API가 동작하는 동안 열어 둡니다. API 문서는 `http://localhost:8001/docs`, 상태 확인은 `http://localhost:8001/health`입니다. PowerShell에서 가상 환경 활성화가 차단되면 다음 명령을 현재 사용자에 한해 실행한 후 다시 활성화합니다.
 
-## 웹 앱 실행
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+### 웹 앱 실행
+
+새 PowerShell 창을 열고 프로젝트 루트 폴더로 이동한 다음 웹 앱을 실행합니다. 위의 빠른 시작 경로로 clone했다면 `cd $HOME\Documents\building-energy`로 이동합니다. API 실행 창은 계속 켜 두어야 합니다.
 
 다른 터미널에서 다음을 실행합니다.
 
@@ -63,7 +137,7 @@ npm ci
 npm run dev
 ```
 
-웹 앱: `http://localhost:3001`
+웹 앱은 `http://localhost:3001`에서 열립니다. 각 서버를 종료할 때는 해당 서버의 PowerShell 창에서 `Ctrl+C`를 누릅니다.
 
 ## 화면 안내
 
@@ -72,6 +146,8 @@ npm run dev
 화면과 API는 교육용 프로토타입입니다. 프로젝트 코드는 GitHub 저장소에 공개되어 있습니다. 아래 로컬 실행 절차는 AWS 리소스를 생성하지 않습니다.
 
 ## Docker Compose로 실행
+
+앞의 Windows 빠른 시작을 완료했다면 이 절을 다시 수행할 필요는 없습니다. 아래는 Docker를 사용할 수 있는 다른 운영체제에서도 동일한 프로젝트 구성을 실행하는 요약입니다.
 
 Docker Desktop이 실행 중인 상태에서 프로젝트 루트 디렉터리에서 다음 명령을 실행합니다.
 
@@ -86,6 +162,10 @@ docker compose up --build
 종료하려면 같은 디렉터리에서 `docker compose down`을 실행합니다. 모델 파일은 이미지에 포함되며, 원본 학습 데이터는 컨테이너 실행에 필요하지 않습니다.
 
 ## AWS CLI와 Docker Compose로 EC2 배포
+
+이 절차는 인터넷에 서비스를 공개할 때만 필요합니다. 로컬에서 시험하려면 앞의 Docker 빠른 시작만 사용하세요. AWS 계정과 해당 리소스를 만들 권한이 필요하며 EC2, 저장 공간, CloudFront 사용 요금이 발생할 수 있습니다. AWS 콘솔에서 서울 리전(`ap-northeast-2`)을 선택한 뒤 CloudShell을 엽니다. 이미 전용 인스턴스가 있다면 `create_ec2.sh`를 다시 실행하지 말고 아래의 재실행 절차를 사용하세요.
+
+새 담당자가 AWS 권한 확인부터 새 EC2/CloudFront 생성, 기능 검증, 재실행, 중지까지 진행하는 상세 절차는 [새 담당자를 위한 AWS 배포 인수 문서](./DEPLOYMENT_HANDOFF.md)를 참고하세요. 실제 다른 사람의 새 환경 배포와 리뷰는 별도로 수행해 완료 여부를 기록해야 합니다.
 
 배포 대상은 기존 ECS·EC2 인프라와 분리된 전용 인스턴스 `building-energy-week08`입니다. 배포 스크립트는 이 이름 태그를 확인하며, 다른 인스턴스 ID가 지정되면 거부합니다. 웹·API 포트는 처음부터 인터넷에 열지 않고, CloudFront 구성 후 AWS 관리형 CloudFront origin-facing IP 목록에만 허용합니다. 브라우저는 CloudFront 기본 HTTPS 주소를 사용하므로 별도 도메인을 구매할 필요가 없습니다.
 
@@ -112,13 +192,25 @@ bash scripts/create_cloudfront.sh i-인스턴스ID
 
 CloudFront 요청에는 AWS 요금이 발생할 수 있습니다. EC2 중지·시작으로 퍼블릭 IPv4와 퍼블릭 DNS 호스트명이 바뀌면 `deploy_ec2.sh`가 CloudFront의 웹·API origin을 새 호스트명으로 갱신하고 배포가 완료될 때까지 기다린 뒤, HTTPS 웹과 API 상태를 확인합니다. 사용자가 공유하는 CloudFront HTTPS 주소는 유지되지만, 반복 배포 때 CloudFront 전파 시간만큼 더 기다려야 합니다.
 
-초기 HTTPS 구성이 끝난 후 코드 변경을 배포할 때는 다음을 실행합니다.
+### 중지한 EC2 다시 실행 또는 코드 재배포
+
+실습 후 `stop_ec2.sh`로 EC2를 중지했다가 다시 사용할 때는 AWS 콘솔의 CloudShell을 열고 다음을 실행합니다. CloudShell의 서울 리전을 선택하고, 저장소를 아직 내려받지 않았다면 먼저 clone합니다.
 
 ```bash
+git clone --branch feature/meter-models https://github.com/yokumi12/building-energy.git ~/building-energy
+```
+
+이미 저장소가 있다면 clone 명령은 건너뛰고, 아래 명령으로 재실행합니다.
+
+```bash
+cd ~/building-energy
+export AWS_REGION=ap-northeast-2
 bash scripts/deploy_ec2.sh i-인스턴스ID
 ```
 
-이 명령은 AWS CLI로 `Name=building-energy-week08`인 인스턴스만 확인하고 중지 후 시작하여 부팅 배포를 다시 실행합니다. 스크립트는 매번 Docker Compose로 웹·API 이미지를 재빌드합니다. 코드 변경은 GitHub의 `feature/meter-models` 브랜치에 먼저 push해야 다음 실행에서 반영됩니다. 인스턴스의 주소가 바뀌면 스크립트가 CloudFront origin을 갱신하고 웹·API 점검까지 수행합니다. 재배포 후 스크립트가 출력하는 HTTPS CloudFront 주소를 사용하세요.
+`deploy_ec2.sh`는 `Name=building-energy-week08`인 전용 인스턴스만 대상으로 합니다. 인스턴스가 중지 상태면 시작하고, 실행 중이면 중지 후 다시 시작한 뒤 부팅 배포를 기다립니다. 매번 Docker Compose로 웹·API 이미지를 다시 빌드합니다. EC2 중지 후 시작 시 퍼블릭 IPv4와 DNS는 바뀔 수 있지만, 스크립트가 CloudFront의 웹·API origin을 새 DNS로 갱신하고 배포 상태 및 HTTPS 웹/API를 확인합니다. CloudFront 배포를 삭제하지 않는 한 사용자 사이트 주소는 유지되므로, 스크립트가 출력하는 기존 CloudFront HTTPS 주소로 접속하면 됩니다.
+
+코드 변경을 배포하려면 먼저 GitHub의 `feature/meter-models` 브랜치에 push한 뒤 같은 명령을 실행합니다. 사이트가 이미 정상 작동 중이면 이 명령을 불필요하게 실행하지 마세요. 실행 중인 인스턴스도 재시작하여 서비스가 잠시 중단되고, EC2 실행 요금이 발생합니다.
 
 실습 후에는 다음 명령으로 전용 인스턴스를 중지합니다.
 

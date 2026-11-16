@@ -586,9 +586,9 @@ export default function Home() {
         <div className="page-width hero-inner">
           <div className="hero-copy">
             <p className="kicker"><span /> 건물 에너지 설계 도구</p>
-            <h1>더 나은 설계,<br /><em>더 똑똑한 에너지.</em></h1>
-            <p className="hero-description">예측할 항목을 선택하고<br className="desktop-break" /> 건물 조건에 따른 부하를 확인해보세요.</p>
-            <div className="hero-note"><span className="note-icon">i</span> UCI 시뮬레이션 기반 예측이며, 실제 사용량이 아닙니다.</div>
+            <h1>건물 설계 조건으로<br /><em>난방·냉방 부하를 예측합니다.</em></h1>
+            <p className="hero-description">초기 설계 조건을 바꿔가며<br className="desktop-break" /> UCI 시뮬레이션 기반 예측값을 비교해보세요.</p>
+            <div className="hero-note"><span className="note-icon">i</span> 교육용 추정값이며, 실제 계량 사용량이나 설계 적합성 판정이 아닙니다.</div>
           </div>
           <div className="building-visual" aria-hidden="true">
             <div className="sun-orbit"><span className="sun" /></div>
@@ -598,7 +598,7 @@ export default function Home() {
               <div className="building-windows"><i /><i /><i /><i /><i /><i /><i /><i /><i /></div>
               <div className="building-door" />
             </div>
-            <div className="visual-caption"><span className="caption-line" /> 설계 조건을 바꿔 성능을 확인하세요</div>
+            <div className="visual-caption"><span className="caption-line" /> 설계 조건에 따른 예측 부하를 비교하세요</div>
           </div>
         </div>
       </section>
