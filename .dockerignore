@@ -1,0 +1,8 @@
+.git
+.pytest_cache
+**/__pycache__
+**/.next
+**/node_modules
+**/.venv
+data/raw
+*.py[cod]
