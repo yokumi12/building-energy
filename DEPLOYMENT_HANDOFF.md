@@ -27,7 +27,7 @@
 아래는 저장소의 `scripts/create_ec2.sh`, `create_cloudfront.sh`, `deploy_ec2.sh`, `stop_ec2.sh`, `update_cloudfront_origin.sh`가 사용하는 작업 기준입니다. 관리자에게 이 작업을 허용하는 프로젝트 전용 권한을 요청합니다. `List`/`Describe` 계열은 AWS 정책에서 리소스 ARN 제한을 지원하지 않아 `Resource: "*"`가 필요한 경우가 있습니다. 생성·수정 작업은 가능하면 이 프로젝트의 인스턴스·보안 그룹·CloudFront 함수/배포와 서울 리전에 범위를 좁혀야 합니다.
 
 - **확인 및 로그인:** `sts:GetCallerIdentity`
-- **EC2 조회·생성·중지/시작:** `ec2:DescribeInstances`, `ec2:DescribeVpcs`, `ec2:DescribeSubnets`, `ec2:DescribeSecurityGroups`, `ec2:DescribeSecurityGroupRules`, `ec2:DescribeManagedPrefixLists`, `ec2:CreateSecurityGroup`, `ec2:CreateTags`, `ec2:RunInstances`, `ec2:AuthorizeSecurityGroupIngress`, `ec2:RevokeSecurityGroupIngress`, `ec2:StopInstances`, `ec2:StartInstances`
+- **EC2 조회·생성·중지/시작:** `ec2:DescribeInstances`, `ec2:DescribeInstanceStatus`, `ec2:DescribeVpcs`, `ec2:DescribeSubnets`, `ec2:DescribeSecurityGroups`, `ec2:DescribeSecurityGroupRules`, `ec2:DescribeManagedPrefixLists`, `ec2:CreateSecurityGroup`, `ec2:CreateTags`, `ec2:RunInstances`, `ec2:AuthorizeSecurityGroupIngress`, `ec2:RevokeSecurityGroupIngress`, `ec2:StopInstances`, `ec2:StartInstances`
 - **Ubuntu AMI ID 조회:** `ssm:GetParameter` (경로 `/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id`)
 - **CloudFront 함수와 배포 조회·생성·갱신:** `cloudfront:ListFunctions`, `cloudfront:CreateFunction`, `cloudfront:DescribeFunction`, `cloudfront:PublishFunction`, `cloudfront:ListDistributions`, `cloudfront:ListCachePolicies`, `cloudfront:ListOriginRequestPolicies`, `cloudfront:CreateDistribution`, `cloudfront:GetDistribution`, `cloudfront:GetDistributionConfig`, `cloudfront:UpdateDistribution`
 
@@ -96,7 +96,8 @@ CloudFront가 만든 HTTPS 주소는 같은 CloudFront 배포를 유지하는 �
 
 ```bash
 export SITE_URL="https://<배포도메인>"
-curl --fail --show-error --silent "$SITE_URL/"
+curl --fail --show-error --silent --output /dev/null \
+  --write-out 'web HTTP %{http_code}\n' "$SITE_URL/"
 curl --fail --show-error --silent "$SITE_URL/api/health"
 ```
 
